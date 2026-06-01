@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>BirthdayWorld — Explore</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #10131f; }
+    #game { width: 100vw; height: 100vh; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #cdd6f0; font-family: -apple-system, sans-serif; font-size: 1.1rem; z-index: 10;
+      background: #10131f;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+  <div id="loading">Loading the world…</div>
+  <div id="game"></div>
+  <script src="/explore.js"></script>
+</body>
+</html>
