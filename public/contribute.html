@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BirthdayWorld — Contribute</title>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--mono);
       background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
       color: #f0f2f8;
       min-height: 100vh;
@@ -39,23 +39,22 @@
     }
     input:focus { outline: 2px solid #6d8cff; border-color: transparent; }
 
-    .emoji-row { display: flex; flex-wrap: wrap; gap: 10px; }
-    .emoji-opt {
-      width: 52px; height: 52px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.6rem;
-      background: rgba(0, 0, 0, 0.3);
-      border: 2px solid transparent;
-      cursor: pointer;
-      user-select: none;
+    .char-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .char-opt {
+      width: 60px; padding: 6px 4px 4px; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(0, 0, 0, 0.3); border: 2px solid transparent;
+      cursor: pointer; user-select: none;
     }
-    .emoji-opt.sel { border-color: #6d8cff; background: rgba(109, 140, 255, 0.25); }
+    .char-opt canvas { width: 36px; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+    .char-opt .cn { font-size: 0.62rem; color: #aab3cc; }
+    .char-opt.sel { border-color: #6d8cff; background: rgba(109, 140, 255, 0.25); }
+    .char-opt.sel .cn { color: #fff; }
 
     .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .theme-opt {
       border-radius: 12px;
-      padding: 14px 8px;
+      padding: 16px 8px;
       text-align: center;
       cursor: pointer;
       border: 2px solid transparent;
@@ -63,7 +62,6 @@
       font-size: 0.9rem;
       font-weight: 600;
     }
-    .theme-opt .ic { display: block; font-size: 1.5rem; margin-bottom: 4px; }
     .theme-opt.sel { outline: 3px solid #fff; outline-offset: 1px; }
 
     .line-input { margin-top: 10px; }
@@ -101,12 +99,12 @@
 </head>
 <body>
   <div class="card" id="card">
-    <h1>🌱 Plant your patch</h1>
+    <h1>Plant your patch</h1>
     <p class="sub" id="sub">Add your character to <span id="personName">the world</span>.</p>
 
     <form id="form">
       <label>Pick your character</label>
-      <div class="emoji-row" id="emojiRow"></div>
+      <div class="char-row" id="charRow"></div>
 
       <label for="charName">Character name (shown above their head)</label>
       <input id="charName" type="text" placeholder="e.g. Wizard Greg" maxlength="40" />
@@ -129,39 +127,45 @@
   </div>
 
   <div class="card done" id="done">
-    <div class="big">🌷</div>
     <h2>Your patch is planted.</h2>
     <p class="sub">Thanks for adding to the world. You can close this page.</p>
   </div>
 
+  <script src="/pixel/characters.js"></script>
   <script>
     const worldId = location.pathname.split('/').pop();
 
-    const EMOJIS = ['🧙', '🧝', '🧜', '🧚', '🦊', '🐺', '🐸', '🤖'];
     const THEMES = [
-      { id: 'forest', label: 'Forest', ic: '🌲', color: '#2d4a1e' },
-      { id: 'beach', label: 'Beach', ic: '🏖', color: '#1a6b8a' },
-      { id: 'cave', label: 'Cave', ic: '⛰', color: '#3a2820' },
-      { id: 'snow', label: 'Snow', ic: '❄', color: '#5b7a88' },
-      { id: 'desert', label: 'Desert', ic: '🌵', color: '#8a7040' },
-      { id: 'magical', label: 'Magical', ic: '✨', color: '#3a2060' },
+      { id: 'forest', label: 'Forest', color: '#2d4a1e' },
+      { id: 'beach', label: 'Beach', color: '#1a6b8a' },
+      { id: 'cave', label: 'Cave', color: '#3a2820' },
+      { id: 'snow', label: 'Snow', color: '#5b7a88' },
+      { id: 'desert', label: 'Desert', color: '#8a7040' },
+      { id: 'magical', label: 'Magical', color: '#3a2060' },
     ];
 
-    let selectedEmoji = EMOJIS[0];
+    const NPC_DESIGNS = BW.characters.NPC_DESIGNS;
+    let selectedDesign = NPC_DESIGNS[0].id;
     let selectedTheme = THEMES[0].id;
 
-    // Build emoji pickers
-    const emojiRow = document.getElementById('emojiRow');
-    EMOJIS.forEach((e, i) => {
+    // Build generated pixel-art character options
+    const charRow = document.getElementById('charRow');
+    NPC_DESIGNS.forEach((d, i) => {
       const div = document.createElement('div');
-      div.className = 'emoji-opt' + (i === 0 ? ' sel' : '');
-      div.textContent = e;
+      div.className = 'char-opt' + (i === 0 ? ' sel' : '');
+      div.dataset.id = d.id;
+      const canvas = document.createElement('canvas');
+      BW.characters.drawToCanvas(canvas, d, 3);
+      const label = document.createElement('span');
+      label.className = 'cn';
+      label.textContent = d.name;
+      div.appendChild(canvas);
+      div.appendChild(label);
       div.addEventListener('click', () => {
-        selectedEmoji = e;
-        document.querySelectorAll('.emoji-opt').forEach((el) => el.classList.remove('sel'));
-        div.classList.add('sel');
+        selectedDesign = d.id;
+        charRow.querySelectorAll('.char-opt').forEach((el) => el.classList.toggle('sel', el === div));
       });
-      emojiRow.appendChild(div);
+      charRow.appendChild(div);
     });
 
     // Build theme grid
@@ -170,7 +174,7 @@
       const div = document.createElement('div');
       div.className = 'theme-opt' + (i === 0 ? ' sel' : '');
       div.style.background = t.color;
-      div.innerHTML = `<span class="ic">${t.ic}</span>${t.label}`;
+      div.textContent = t.label;
       div.addEventListener('click', () => {
         selectedTheme = t.id;
         document.querySelectorAll('.theme-opt').forEach((el) => el.classList.remove('sel'));
@@ -224,7 +228,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sprite: selectedEmoji,
+            sprite: selectedDesign,
             theme: selectedTheme,
             contributor_name: document.getElementById('charName').value,
             greeting: document.getElementById('greeting').value,

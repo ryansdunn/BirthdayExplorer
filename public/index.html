@@ -9,7 +9,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
       color: #f0f2f8;
       min-height: 100vh;
@@ -66,13 +66,12 @@
     .link-row .url { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
     .link-row input { font-size: 0.85rem; padding: 8px 10px; }
     .copy { width: auto; margin: 0; padding: 8px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.12); }
-    .emoji { font-size: 1.5rem; }
     .err { color: #ff9b9b; margin-top: 12px; font-size: 0.9rem; min-height: 1em; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1><span class="emoji">🎂</span> BirthdayWorld</h1>
+    <h1>BirthdayWorld</h1>
     <p class="sub">Build a little world of friends for someone's birthday.</p>
 
     <form id="form">
@@ -87,12 +86,12 @@
     </form>
 
     <div class="links" id="links">
-      <h1 style="font-size:1.2rem;">✨ Your world is ready</h1>
+      <h1 style="font-size:1.2rem;">Your world is ready</h1>
       <p class="sub">First, set up the world — then share the links.</p>
 
       <a id="setupLink" href="#" style="display:block; text-decoration:none;">
         <div class="link-row" style="border-color: rgba(155,109,255,0.6); background: rgba(155,109,255,0.12);">
-          <div class="lbl" style="color:#c9b3ff;">⚙️ Step 1 — Set up your world</div>
+          <div class="lbl" style="color:#c9b3ff;">Step 1 — Set up your world</div>
           <div style="margin-top:6px; color:#fff; font-weight:600;">
             Choose the mood, enemies & birthday character →
           </div>

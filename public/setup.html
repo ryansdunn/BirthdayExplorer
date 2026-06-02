@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BirthdayWorld — Set up</title>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--mono);
       background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
       color: #f0f2f8;
       min-height: 100vh;
@@ -35,20 +35,32 @@
     }
     input:focus, select:focus { outline: 2px solid #6d8cff; border-color: transparent; }
 
-    .emoji-row { display: flex; flex-wrap: wrap; gap: 10px; }
-    .emoji-opt {
-      width: 52px; height: 52px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.6rem; background: rgba(0,0,0,0.3);
-      border: 2px solid transparent; cursor: pointer; user-select: none;
+    /* generated pixel-art character options */
+    .char-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .char-opt {
+      width: 60px; padding: 6px 4px 4px; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(0,0,0,0.3); border: 2px solid transparent;
+      cursor: pointer; user-select: none;
     }
-    .emoji-opt.sel { border-color: #6d8cff; background: rgba(109,140,255,0.25); }
+    .char-opt canvas { width: 36px; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+    .char-opt .cn { font-size: 0.62rem; color: #aab3cc; }
+    .char-opt.sel { border-color: #6d8cff; background: rgba(109,140,255,0.25); }
+    .char-opt.sel .cn { color: #fff; }
+
+    .theme-grid { display: grid; gap: 10px; }
+    .theme-opt {
+      border-radius: 12px; padding: 16px 8px; text-align: center; cursor: pointer;
+      border: 2px solid transparent; color: #fff; font-size: 0.9rem; font-weight: 600;
+    }
+    .theme-opt.sel { outline: 3px solid #fff; outline-offset: 1px; }
 
     .enemy {
       display: flex; align-items: center; gap: 12px;
       background: rgba(0,0,0,0.22); border-radius: 12px; padding: 12px 14px; margin-top: 12px;
     }
-    .enemy .face { font-size: 1.7rem; width: 34px; text-align: center; }
+    .enemy .face { width: 34px; height: 34px; flex: none; display: flex; align-items: center; justify-content: center; }
+    .enemy .face canvas { width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
     .enemy .meta { flex: 1; min-width: 0; }
     .enemy .meta .nm { font-weight: 600; font-size: 0.95rem; }
     .enemy .meta .ds { font-size: 0.78rem; color: #98a1ba; }
@@ -84,7 +96,7 @@
 </head>
 <body>
   <div class="card" id="card">
-    <h1>⚙️ Set up the world</h1>
+    <h1>Set up the world</h1>
     <p class="sub" id="sub">Configure <span id="personName">the world</span> before sharing it.</p>
 
     <form id="form">
@@ -98,7 +110,7 @@
         <h2>Birthday person's character</h2>
         <p class="hint">Their explorer sprite and the name floating above them.</p>
         <label>Pick a character</label>
-        <div class="emoji-row" id="emojiRow"></div>
+        <div class="char-row" id="charRow"></div>
         <label for="playerName">Name above their head</label>
         <input id="playerName" type="text" placeholder="e.g. Maya" maxlength="40" />
       </div>
@@ -113,9 +125,9 @@
         <h2>World mood</h2>
         <p class="hint">A quick preset for how lively the world is.</p>
         <select id="mood">
-          <option value="peaceful">😌 Peaceful — just friends & cakes, no enemies</option>
-          <option value="adventure" selected>⚔️ Adventure — a balanced wholesome mix</option>
-          <option value="chaotic">🎉 Chaotic — everything, everywhere</option>
+          <option value="peaceful">Peaceful — just friends &amp; cakes, no enemies</option>
+          <option value="adventure" selected>Adventure — a balanced wholesome mix</option>
+          <option value="chaotic">Chaotic — everything, everywhere</option>
         </select>
       </div>
 
@@ -130,23 +142,52 @@
     </form>
 
     <div class="done" id="done">
-      <div style="font-size:3rem;">🎈</div>
       <h2>World saved!</h2>
       <p class="sub">Now share the contributor and explorer links from the create page.</p>
       <a id="exploreNow" href="#" style="color:#9fb0ff; font-weight:600;">Preview the explorer →</a>
     </div>
   </div>
 
+  <script src="/pixel/palettes.js"></script>
+  <script src="/pixel/characters.js"></script>
   <script>
     const worldId = location.pathname.split('/').pop();
 
-    const PLAYER_EMOJIS = ['🧑', '👩', '👨', '🧒', '🦸', '🧚', '🐱', '🐶'];
     const ENEMY_DEFS = [
-      { id: 'love_heart', face: '💖', nm: 'Love Heart', ds: 'Floats over and bumps you with affection.' },
-      { id: 'hugger', face: '🤗', nm: 'Hugger', ds: 'Charges in for a big squeezy hug.' },
-      { id: 'confetti_bomber', face: '⭐', nm: 'Confetti Bomber', ds: 'Keeps its distance, lobs confetti.' },
-      { id: 'birthday_cake', face: '🎂', nm: 'Birthday Cake', ds: 'A treat — walk into it to heal a heart.' },
+      { id: 'love_heart', nm: 'Love Heart', ds: 'Floats over and bumps you with affection.' },
+      { id: 'hugger', nm: 'Hugger', ds: 'Charges in for a big squeezy hug.' },
+      { id: 'confetti_bomber', nm: 'Confetti Bomber', ds: 'Keeps its distance, lobs confetti.' },
+      { id: 'birthday_cake', nm: 'Birthday Cake', ds: 'A treat — walk into it to heal a heart.' },
     ];
+
+    // ── tiny pixel-art enemy icons (palette-driven, no emoji) ──
+    function hex(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
+    function drawEnemyIcon(canvas, id) {
+      const S = 2; canvas.width = 16 * S; canvas.height = 16 * S;
+      const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const pal = BW.palettes.enemy[id];
+      const px = (c, x, y, w, h) => { ctx.fillStyle = c; ctx.fillRect(x * S, y * S, w * S, h * S); };
+      if (id === 'love_heart') {
+        const c = hex(pal.body), d = hex(pal.dark), l = hex(pal.light);
+        px(c, 2, 3, 4, 4); px(c, 10, 3, 4, 4); px(c, 2, 5, 12, 4);
+        px(c, 3, 9, 10, 2); px(c, 5, 11, 6, 2); px(c, 7, 13, 2, 1);
+        px(l, 3, 4, 2, 2); px(l, 11, 4, 2, 2); px(d, 3, 8, 10, 1);
+      } else if (id === 'hugger') {
+        const c = hex(pal.body), d = hex(pal.dark), e = hex(pal.eye), l = hex(pal.light);
+        px(c, 3, 3, 10, 10); px(c, 1, 6, 2, 3); px(c, 13, 6, 2, 3);
+        px(d, 3, 11, 10, 2); px(l, 4, 4, 3, 2);
+        px(e, 5, 6, 2, 2); px(e, 9, 6, 2, 2); px(e, 6, 10, 4, 1);
+      } else if (id === 'confetti_bomber') {
+        const c = hex(pal.body), l = hex(pal.light), e = hex(pal.eye);
+        px(c, 6, 1, 4, 5); px(c, 1, 9, 5, 4); px(c, 10, 9, 5, 4);
+        px(c, 5, 5, 6, 6); px(c, 6, 11, 4, 4); px(l, 6, 6, 4, 3);
+        px(e, 6, 7, 1, 2); px(e, 9, 7, 1, 2);
+      } else { // birthday_cake
+        const base = hex(pal.base), ic = hex(pal.icing), ca = hex(pal.candle), fl = hex(pal.flame), pl = hex(pal.plate);
+        px(fl, 7, 1, 2, 2); px(ca, 7, 3, 2, 3); px(ic, 3, 6, 10, 2);
+        px(base, 3, 8, 10, 5); px(ic, 3, 8, 10, 1); px(pl, 2, 13, 12, 2);
+      }
+    }
     const PRESETS = {
       peaceful: { love_heart: { on: false, count: 2 }, hugger: { on: false, count: 1 }, confetti_bomber: { on: false, count: 2 }, birthday_cake: { on: true, count: 1 } },
       adventure: { love_heart: { on: true, count: 2 }, hugger: { on: true, count: 1 }, confetti_bomber: { on: false, count: 2 }, birthday_cake: { on: true, count: 1 } },
@@ -154,11 +195,12 @@
     };
 
     const SHAPE_DEFS = [
-      { id: 'island', ic: '🏝', label: 'One island', color: '#2d6a3a' },
-      { id: 'archipelago', ic: '⛵', label: 'Archipelago', color: '#1a6b8a' },
+      { id: 'island', label: 'One island', color: '#2d6a3a' },
+      { id: 'archipelago', label: 'Archipelago', color: '#1a6b8a' },
     ];
 
-    let selectedEmoji = PLAYER_EMOJIS[0];
+    const PLAYER_DESIGNS = BW.characters.PLAYER_DESIGNS;
+    let selectedDesign = PLAYER_DESIGNS[0].id;
     let selectedShape = 'island';
 
     const shapeGrid = document.getElementById('shapeGrid');
@@ -167,7 +209,7 @@
       div.className = 'theme-opt' + (i === 0 ? ' sel' : '');
       div.dataset.shape = s.id;
       div.style.background = s.color;
-      div.innerHTML = `<span class="ic">${s.ic}</span>${s.label}`;
+      div.textContent = s.label;
       div.addEventListener('click', () => {
         selectedShape = s.id;
         shapeGrid.querySelectorAll('.theme-opt').forEach((el) => el.classList.remove('sel'));
@@ -176,17 +218,24 @@
       shapeGrid.appendChild(div);
     });
 
-    const emojiRow = document.getElementById('emojiRow');
-    PLAYER_EMOJIS.forEach((e, i) => {
+    const charRow = document.getElementById('charRow');
+    function selectDesign(id) {
+      selectedDesign = id;
+      charRow.querySelectorAll('.char-opt').forEach((el) => el.classList.toggle('sel', el.dataset.id === id));
+    }
+    PLAYER_DESIGNS.forEach((d, i) => {
       const div = document.createElement('div');
-      div.className = 'emoji-opt' + (i === 0 ? ' sel' : '');
-      div.textContent = e;
-      div.addEventListener('click', () => {
-        selectedEmoji = e;
-        document.querySelectorAll('.emoji-opt').forEach((el) => el.classList.remove('sel'));
-        div.classList.add('sel');
-      });
-      emojiRow.appendChild(div);
+      div.className = 'char-opt' + (i === 0 ? ' sel' : '');
+      div.dataset.id = d.id;
+      const canvas = document.createElement('canvas');
+      BW.characters.drawToCanvas(canvas, d, 3);
+      const label = document.createElement('span');
+      label.className = 'cn';
+      label.textContent = d.name;
+      div.appendChild(canvas);
+      div.appendChild(label);
+      div.addEventListener('click', () => selectDesign(d.id));
+      charRow.appendChild(div);
     });
 
     // Build enemy rows
@@ -196,7 +245,7 @@
       const row = document.createElement('div');
       row.className = 'enemy';
       row.innerHTML = `
-        <div class="face">${def.face}</div>
+        <div class="face"><canvas></canvas></div>
         <div class="meta"><div class="nm">${def.nm}</div><div class="ds">${def.ds}</div></div>
         <div class="ctrl">
           <input type="range" min="1" max="5" step="1" value="2" />
@@ -204,6 +253,7 @@
           <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
         </div>`;
       enemiesWrap.appendChild(row);
+      drawEnemyIcon(row.querySelector('.face canvas'), def.id);
       const range = row.querySelector('input[type=range]');
       const cnt = row.querySelector('.cnt');
       const toggle = row.querySelector('input[type=checkbox]');
@@ -238,10 +288,8 @@
         selectedShape = w.terrain_style === 'archipelago' ? 'archipelago' : 'island';
         shapeGrid.querySelectorAll('.theme-opt').forEach((el) =>
           el.classList.toggle('sel', el.dataset.shape === selectedShape));
-        if (w.player_sprite && PLAYER_EMOJIS.includes(w.player_sprite)) {
-          selectedEmoji = w.player_sprite;
-          document.querySelectorAll('.emoji-opt').forEach((el) =>
-            el.classList.toggle('sel', el.textContent === w.player_sprite));
+        if (w.player_sprite && BW.characters.ALL[w.player_sprite]) {
+          selectDesign(w.player_sprite);
         }
         applyConfig(w.enemy_config || PRESETS.adventure);
       })
@@ -267,7 +315,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             world_name: document.getElementById('worldName').value,
-            player_sprite: selectedEmoji,
+            player_sprite: selectedDesign,
             player_name: document.getElementById('playerName').value,
             mood: moodSel.value,
             terrain_style: selectedShape,

@@ -1,4 +1,4 @@
-# 🎂 BirthdayWorld
+# BirthdayWorld
 
 An interactive **pixel-art adventure** where friends contribute NPC characters with
 birthday messages, and the birthday person washes ashore and explores the world talking
@@ -22,12 +22,13 @@ Then open <http://localhost:3000/create>.
 1. **Create** (`/create`) — enter the birthday person's name and date. You get a link
    to set the world up, plus a **contributor** link and an **explorer** link.
 2. **Set up** (`/setup/:worldId`) — the organiser picks a world name, the birthday
-   person's character + nameplate, the **world shape** (🏝 one organic island / ⛵
+   person's character + nameplate, the **world shape** (one organic island /
    archipelago), a **mood** (Peaceful / Adventure / Chaotic), and the **enemy mix**
-   (toggle + 1–5 slider per wholesome enemy type).
-3. **Contribute** (`/contribute/:worldId`) — friends pick an emoji character, a zone
-   theme, a name, a greeting, and up to 3 dialogue lines. Each submission is placed at
-   the next free coordinate, spiralling outward from the hub.
+   (toggle + 1–5 slider per wholesome enemy type). The character is a generated
+   pixel-art design picked from canvas previews — no emoji.
+3. **Contribute** (`/contribute/:worldId`) — friends pick a generated pixel-art
+   character, a zone theme, a name, a greeting, and up to 3 dialogue lines. Each
+   submission is placed at the next free coordinate, spiralling outward from the hub.
 4. **Explore** (`/explore/:worldId`) — a Zelda-style top-down adventure (see below).
 
 ## The explorer
@@ -43,25 +44,28 @@ separate unzoomed UI camera (crisp HUD).
     to neighbours by walkable **wooden bridges**.
   Water is impassable (manual per-tile collision with wall-sliding); every chunk centre
   is guaranteed land so NPCs always stand on ground.
-- **Pixel sprites**, all palette-driven and generated at runtime — a 4-direction
-  walk-cycle player, distinct NPCs (palette derived from the contributor's name + their
-  emoji face), enemies, trees/rocks/bushes/flowers, and the paper airplane. Restyle the
-  whole game by editing `public/pixel/palettes.js`.
-- **Paper airplanes.** Press **F** (or the mobile ✈ button) to throw a pixel airplane in
+- **Pixel sprites**, all generated at runtime — a 4-direction walk-cycle player and
+  NPCs painted from shared character designs (`public/pixel/characters.js`), enemies,
+  trees/rocks/bushes/flowers, and the paper airplane. The character a player/contributor
+  picks in the forms is the exact same `paintFrame` used in-game, so previews match.
+  Restyle terrain colours via `public/pixel/palettes.js`.
+- **Paper airplanes.** Press **F** (or the mobile airplane button) to throw a pixel airplane in
   your facing direction; a hit pops a roaming enemy into confetti (it returns on the 30s
   respawn). Birthday Cakes and NPCs are never affected.
 - **Feel** — camera leads the direction of travel, ambient particles (forest leaves /
   beach bubbles / magical sparkles), animated water, a 10-minute day/night tint,
   footstep dust, and a light-bloom fog-of-war reveal.
-- **HUD** — heart containers (full / half / empty, ½-heart hits with a 1s invincibility
-  flash), a compass to the nearest un-met friend, and a fog-of-war minimap.
+- **HUD** — heart containers top-right (full / half / empty, ½-heart hits with a 1s
+  invincibility flash), a compass to the nearest un-met friend, a fog-of-war minimap,
+  and a **living-portrait** card (top-left) that lists everyone you've met — hover a
+  person to re-read the message they wrote.
 - **Wholesome enemies** — Love Hearts (home in, ½-heart bump), Huggers (charge, grab
   1.5s, full-heart squeeze), Confetti Bombers (keep distance, lob confetti), and
   Birthday Cakes (stationary; walk in to **heal** a heart). Run out of hearts and you get
   a wholesome game-over — *"You were loved too hard. Try again?"* — respawning at the hub.
 
-Controls: **WASD / arrows** move, **E** talk, **F** throw, **Space** advance dialogue.
-On mobile: left-half drag joystick, ✈ button throws, 💬 button appears to talk.
+Controls: **WASD / arrows** move, **Space** or **E** talk / advance dialogue, **F** throw.
+On mobile: left-half drag joystick, the airplane button throws, the TALK button appears near people.
 
 ### Swapping in real art
 
@@ -93,7 +97,8 @@ public/contribute.html  Contributor form
 public/explore.html     Phaser game shell (loads the pixel/* modules, then explore.js)
 public/explore.js       Phaser scene: terrain/sprite wiring, movement, NPCs, enemies, HUD, dialogue
 public/pixel/noise.js     Deterministic value-noise + domain warp (no deps)
-public/pixel/palettes.js  Data-driven colour palettes (the restyle "config")
+public/pixel/palettes.js  Data-driven terrain colour palettes (the restyle "config")
+public/pixel/characters.js Curated pixel character designs + shared paintFrame renderer
 public/pixel/textures.js  Runtime pixel terrain-tile textures
 public/pixel/terrain.js   Island / archipelago generators, walkability, rendering
 public/pixel/sprites.js   Runtime pixel player / NPC / enemy / prop / airplane sprites

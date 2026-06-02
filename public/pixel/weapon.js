@@ -2,7 +2,7 @@
  * Self-contained projectile manager. The engine (explore.js) wires it via
  * callbacks so all enemy internals stay in explore.js.
  *
- * BW.makeWeapon(scene, cfg) -> { throw(), update(dt), canThrow(), clear() }
+ * BW.makeWeapon(scene, cfg) -> { throw(), throwToward(wx,wy), update(dt), canThrow(), clear() }
  *   cfg.getPlayer()  -> {x, y}
  *   cfg.getFacing()  -> 'down'|'up'|'left'|'right'
  *   cfg.getEnemies() -> array of active enemy objects {x, y, type, consumed, ...}
@@ -28,12 +28,14 @@ window.BW = window.BW || {};
 
     const canThrow = () => scene.time.now - lastThrow >= COOLDOWN;
 
-    function throwPlane() {
+    // Spawn a plane travelling along an arbitrary (dx,dy) vector.
+    function spawn(dx, dy) {
       if (!canThrow()) return false;
+      const len = Math.hypot(dx, dy);
+      if (len < 0.0001) return false;
+      dx /= len; dy /= len;
       lastThrow = scene.time.now;
       const p = cfg.getPlayer();
-      const f = cfg.getFacing() || 'down';
-      const [dx, dy] = DIR[f] || DIR.down;
       let img;
       if (scene.textures.exists(projKey)) img = scene.add.image(p.x, p.y, projKey);
       else img = scene.add.rectangle(p.x, p.y, 12, 6, 0xffffff).setStrokeStyle(1, 0x888888);
@@ -42,6 +44,19 @@ window.BW = window.BW || {};
       if (cfg.onSpawn) cfg.onSpawn(img);
       projectiles.push({ img, vx: dx * SPEED, vy: dy * SPEED, born: scene.time.now });
       return true;
+    }
+
+    // Throw in the player's current facing direction (keyboard).
+    function throwPlane() {
+      const f = cfg.getFacing() || 'down';
+      const [dx, dy] = DIR[f] || DIR.down;
+      return spawn(dx, dy);
+    }
+
+    // Throw toward a world-space point (mouse click).
+    function throwToward(wx, wy) {
+      const p = cfg.getPlayer();
+      return spawn(wx - p.x, wy - p.y);
     }
 
     function update(dt) {
@@ -66,6 +81,6 @@ window.BW = window.BW || {};
 
     function clear() { projectiles.forEach((p) => p.img.destroy()); projectiles = []; }
 
-    return { throw: throwPlane, update, canThrow, clear };
+    return { throw: throwPlane, throwToward, update, canThrow, clear };
   };
 })();

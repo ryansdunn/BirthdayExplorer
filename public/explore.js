@@ -8,6 +8,7 @@
  *   BW.makeWeapon                        (weapon.js)
  * Everything is generated at runtime — zero binary assets. */
 
+const FONT = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace';
 const TILE = 32;
 const CHUNK_TILES = 16;
 const CHUNK_PX = TILE * CHUNK_TILES; // 512
@@ -35,7 +36,7 @@ class WorldScene extends Phaser.Scene {
     super('world');
     this.npcs = [];
     this.chunkState = new Map();
-    this.fogByKey = new Map();
+    this.enemies = []; // all roaming enemies, visible/active everywhere
     this.projectiles = []; // confetti from bombers
     this.dialogue = null;
     this.health = MAX_HEALTH;
@@ -70,7 +71,7 @@ class WorldScene extends Phaser.Scene {
     this.chunks = chunks;
     this.enemyConfig = (world && world.enemy_config) || {};
     this.terrainStyle = (world && world.terrain_style) || 'island';
-    this.playerEmoji = (world && world.player_sprite) || '🧑';
+    this.playerDesign = (world && world.player_sprite) || 'wanderer';
     this.playerName = (world && world.player_name) || (world && world.birthday_person) || 'Explorer';
     document.getElementById('loading').style.display = 'none';
 
@@ -82,7 +83,7 @@ class WorldScene extends Phaser.Scene {
     this.uiLayer = this.add.layer().setDepth(1000);
 
     // Generate sprites, then build + render terrain (terrain calls textures.generate).
-    BW.sprites.generate(this);
+    BW.sprites.generate(this, { playerDesign: this.playerDesign });
     this.terrain = BW.terrain.build(this, {
       chunks, coordKeys: this.coordSet, style: this.terrainStyle,
       seed: BW.hashStringToSeed(worldId),
@@ -93,25 +94,39 @@ class WorldScene extends Phaser.Scene {
       this.worldLayer.add(o);
     });
 
-    // Per-chunk fog, ambient, NPCs, enemy-state.
+    // World bounds (px) over every occupied chunk — enemies roam the whole
+    // island rather than being confined to their home chunk.
+    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+    this.coordSet.forEach((key) => {
+      const [cx, cy] = key.split(',').map(Number);
+      bMinX = Math.min(bMinX, cx * CHUNK_PX); bMinY = Math.min(bMinY, cy * CHUNK_PX);
+      bMaxX = Math.max(bMaxX, (cx + 1) * CHUNK_PX); bMaxY = Math.max(bMaxY, (cy + 1) * CHUNK_PX);
+    });
+    this.worldBounds = { minX: bMinX + 24, minY: bMinY + 24, maxX: bMaxX - 24, maxY: bMaxY - 24 };
+
+    // Ambient particles + NPCs per themed chunk (no more fog — the whole world
+    // is visible from the start so you can see what's out there before entering).
     const npcByKey = new Map();
     chunks.forEach((c) => npcByKey.set(`${c.coord_x},${c.coord_y}`, c));
     this.coordSet.forEach((key) => {
       const [cx, cy] = key.split(',').map(Number);
       const c = npcByKey.get(key);
       if (c) { this.spawnNpc(c); this.addAmbient(cx, cy, c.theme); }
-      this.chunkState.set(key, { themed: !!c, def: c, spawned: false, leftAt: 0, enemies: [], hidden: false });
-      this.addFog(cx, cy);
+      this.chunkState.set(key, { themed: !!c, def: c });
     });
+
+    // All enemies spawn up front and stay visible/active everywhere.
+    this.spawnAllEnemies();
 
     if (chunks.length === 0) {
       this.addWorld(this.add.text(CHUNK_PX / 2, CHUNK_PX / 2, 'waiting for contributors…', {
-        fontFamily: 'sans-serif', fontSize: '18px', color: '#dfe6f5',
+        fontFamily: FONT, fontSize: '18px', color: '#dfe6f5',
       }).setOrigin(0.5).setDepth(5));
     }
 
     this.buildPlayer();
     this.buildHud();
+    this.initPortrait();
     this.setupDialogueUi();
     this.setupTouchControls();
     this.buildOverlays(world);
@@ -119,8 +134,21 @@ class WorldScene extends Phaser.Scene {
     this.setupCameras();
 
     this.input.keyboard.on('keydown-E', () => this.onInteract());
-    this.input.keyboard.on('keydown-SPACE', () => { if (this.dialogue) this.onInteract(); });
+    this.input.keyboard.on('keydown-SPACE', () => { if (!this.gameOver) this.onInteract(); });
     this.input.keyboard.on('keydown-F', () => { if (!this.dialogue && !this.gameOver) this.weapon.throw(); });
+
+    // Mouse aim: click anywhere to throw a paper airplane toward that point.
+    // (Touch devices use the on-screen throw button + joystick instead.)
+    if (!this.sys.game.device.input.touch) {
+      this.input.on('pointerdown', (pointer) => {
+        if (this.dialogue || this.gameOver) return;
+        const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const dx = wp.x - this.player.x, dy = wp.y - this.player.y;
+        if (Math.abs(dx) > Math.abs(dy)) this.facing = dx < 0 ? 'left' : 'right';
+        else this.facing = dy < 0 ? 'up' : 'down';
+        this.weapon.throwToward(wp.x, wp.y);
+      });
+    }
 
     this.startTime = this.time.now;
     this.markVisited(0, 0);
@@ -135,32 +163,31 @@ class WorldScene extends Phaser.Scene {
 
   chunkOrigin(cx, cy) { return { x: cx * CHUNK_PX, y: cy * CHUNK_PX }; }
 
-  // ---- NPCs (pixel body + emoji "face" + nameplate, gentle idle bob) -------
+  // ---- NPCs (generated pixel body + floating nameplate, gentle idle bob) ----
   spawnNpc(c) {
     const ground = this.terrain.chunkCenterLand(c.coord_x, c.coord_y);
     const px = ground.x, py = ground.y;
-    const key = BW.sprites.npcTextureFor(this, c.contributor_name || 'A friend');
+    const key = BW.sprites.npcTextureFor(this, c.sprite);
 
     const container = this.add.container(px, py).setDepth(16);
     const sprite = this.add.sprite(0, 0, key).setOrigin(0.5, 1);
-    const face = this.add.text(0, -22, c.sprite || '🙂', { fontSize: '16px' }).setOrigin(0.5);
-    const nameplate = this.add.text(0, -40, c.contributor_name || 'A friend', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#ffffff',
-      backgroundColor: 'rgba(0,0,0,0.45)', padding: { x: 5, y: 2 },
+    const nameplate = this.add.text(0, -44, c.contributor_name || 'A friend', {
+      fontFamily: FONT, fontSize: '12px', color: '#eef3ff',
+      backgroundColor: 'rgba(16,22,30,0.82)', padding: { x: 7, y: 3 },
     }).setOrigin(0.5, 1);
     let greetingText = null;
     if (c.greeting) {
-      greetingText = this.add.text(0, -58, c.greeting, {
-        fontFamily: 'sans-serif', fontSize: '11px', color: '#fff8d0',
-        backgroundColor: 'rgba(40,30,10,0.75)', padding: { x: 5, y: 3 },
-        wordWrap: { width: 150 }, align: 'center',
+      greetingText = this.add.text(0, -62, c.greeting, {
+        fontFamily: FONT, fontSize: '11px', color: '#fff8d0',
+        backgroundColor: 'rgba(40,30,10,0.78)', padding: { x: 6, y: 4 },
+        wordWrap: { width: 160 }, align: 'center',
       }).setOrigin(0.5, 1).setVisible(false);
     }
-    container.add(greetingText ? [sprite, face, nameplate, greetingText] : [sprite, face, nameplate]);
+    container.add(greetingText ? [sprite, nameplate, greetingText] : [sprite, nameplate]);
     this.addWorld(container);
 
     this.npcs.push({
-      data: c, x: px, y: py, container, sprite, greetingText,
+      data: c, x: px, y: py, container, sprite, greetingText, texKey: key,
       baseY: py, bob: Math.random() * Math.PI * 2, nextFace: 0, visited: false,
     });
   }
@@ -172,16 +199,16 @@ class WorldScene extends Phaser.Scene {
     this.playerSprite = this.add.sprite(0, 0, 'player_down_0').setOrigin(0.5, 1);
     this.playerSprite.play('player_idle_down');
     this.curAnim = 'player_idle_down';
-    const nameplate = this.add.text(0, -42, `${this.playerEmoji} ${this.playerName}`, {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#fff',
-      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 5, y: 2 },
+    const nameplate = this.add.text(0, -46, this.playerName, {
+      fontFamily: FONT, fontSize: '12px', color: '#ffffff',
+      backgroundColor: 'rgba(16,22,30,0.82)', padding: { x: 7, y: 3 },
     }).setOrigin(0.5, 1);
     this.player.add([this.playerSprite, nameplate]);
     this.addWorld(this.player);
 
-    this.talkHint = this.addWorld(this.add.text(0, 0, 'E to talk', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#10131f',
-      backgroundColor: '#ffe27a', padding: { x: 5, y: 2 },
+    this.talkHint = this.addWorld(this.add.text(0, 0, 'SPACE to talk', {
+      fontFamily: FONT, fontSize: '11px', color: '#10131f',
+      backgroundColor: '#ffe27a', padding: { x: 6, y: 3 },
     }).setOrigin(0.5, 1).setDepth(30).setVisible(false));
   }
 
@@ -195,7 +222,7 @@ class WorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setZoom(CAM_ZOOM);
     cam.startFollow(this.player, true, 0.09, 0.09);
-    cam.setBackgroundColor('#0c1018');
+    cam.setBackgroundColor('#1b4a63'); // open ocean beyond the island's water apron
     cam.ignore(this.uiLayer);
 
     this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
@@ -210,43 +237,42 @@ class WorldScene extends Phaser.Scene {
 
   // ---- HUD -----------------------------------------------------------------
   buildHud() {
+    // Hearts sit top-right (matching the portfolio screenshot).
     this.heartsGfx = this.addHud(this.add.graphics().setScrollFactor(0).setDepth(100));
-    this.drawHearts();
 
-    this.weaponInd = this.addHud(this.add.text(0, 0, '✈', {
-      fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff',
-    }).setScrollFactor(0).setDepth(100));
-
-    const title = (this.world && this.world.world_name) || 'BirthdayWorld';
-    this.banner = this.addHud(this.add.text(12, 56, title, {
-      fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff',
-      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 4 },
-    }).setScrollFactor(0).setDepth(100));
+    // Paper-airplane weapon indicator (generated sprite, no emoji).
+    this.weaponInd = this.addHud(this.add.image(0, 0, 'proj_airplane')
+      .setScale(1.6).setScrollFactor(0).setDepth(100));
 
     this.compass = this.addHud(this.add.container(0, 0).setScrollFactor(0).setDepth(100));
     const cring = this.add.circle(0, 0, 22, 0x10131f, 0.7).setStrokeStyle(2, 0xffffff, 0.6);
     this.compassArrow = this.add.triangle(0, 0, 0, -14, -7, 8, 7, 8, 0xff5fa2);
     this.compassLabel = this.add.text(0, 26, 'friend', {
-      fontFamily: 'sans-serif', fontSize: '10px', color: '#cdd6f0',
+      fontFamily: FONT, fontSize: '10px', color: '#cdd6f0',
     }).setOrigin(0.5, 0);
     this.compass.add([cring, this.compassArrow, this.compassLabel]);
 
     this.minimap = this.addHud(this.add.graphics().setScrollFactor(0).setDepth(100));
     this.layoutHud();
+    this.drawHearts();
   }
 
   layoutHud() {
     const cam = this.cameras.main;
-    if (this.weaponInd) this.weaponInd.setPosition(cam.width - 30, 14);
-    if (this.compass) this.compass.setPosition(cam.width - 40, 40);
+    if (this.weaponInd) this.weaponInd.setPosition(28, cam.height - 28);
+    if (this.compass) this.compass.setPosition(cam.width - 40, 130);
+    if (this.heartsGfx) this.drawHearts();
     if (this.throwBtn) { this.throwBtn.setPosition(cam.width - 60, cam.height - 70); this.throwLabel.setPosition(cam.width - 60, cam.height - 70); }
     if (this.talkBtn) { this.talkBtn.setPosition(cam.width / 2, cam.height - 64); this.talkLabel.setPosition(cam.width / 2, cam.height - 64); }
   }
 
   drawHearts() {
     const g = this.heartsGfx; g.clear();
-    for (let h = 0; h < MAX_HEALTH / 2; h++) {
-      const cx = 24 + h * 30, cy = 26;
+    const cam = this.cameras.main;
+    const count = MAX_HEALTH / 2;
+    const gap = 30, right = cam.width - 20;
+    for (let h = 0; h < count; h++) {
+      const cx = right - (count - 1 - h) * gap, cy = 26;
       const filled = this.health - h * 2;
       this.drawHeart(g, cx, cy, 11, 0x3a1020);
       if (filled >= 2) this.drawHeart(g, cx, cy, 11, 0xff4d6d);
@@ -262,6 +288,87 @@ class WorldScene extends Phaser.Scene {
     g.fillCircle(cx - r * 0.5, cy - r * 0.35, r * 0.55);
     g.fillCircle(cx + r * 0.5, cy - r * 0.35, r * 0.55);
     g.fillTriangle(cx - r, cy - r * 0.25, cx + r, cy - r * 0.25, cx, cy + r);
+  }
+
+  // ---- living portrait (DOM roster of people met) -------------------------
+  initPortrait() {
+    this.discovered = new Set();
+    const el = (id) => document.getElementById(id);
+    this.portraitEls = {
+      card: el('portrait'), name: el('pName'), progress: el('pProgress'),
+      bar: el('pBar'), list: el('pList'), hint: el('pHint'), tip: el('pTip'), badge: el('pBadge'),
+    };
+    const p = this.portraitEls;
+    if (!p.card) return;
+    p.card.style.display = 'block';
+    if (p.name) p.name.textContent = this.playerName;
+    if (p.badge) {
+      const initials = this.playerName.trim().split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
+      p.badge.textContent = initials || 'BW';
+    }
+    this.portraitTotal = this.npcs.length;
+    this.updatePortraitProgress();
+  }
+
+  updatePortraitProgress() {
+    const p = this.portraitEls; if (!p || !p.card) return;
+    const found = this.discovered.size, total = this.portraitTotal || 0;
+    if (p.progress) p.progress.textContent = `${found}/${total} discovered`;
+    if (p.bar) p.bar.style.width = total ? `${Math.round((found / total) * 100)}%` : '0%';
+    if (p.hint) {
+      if (total === 0) p.hint.textContent = 'No one has planted a patch in this world yet.';
+      else if (found === 0) p.hint.textContent = "You're a stranger here. Walk up to someone and press SPACE to talk.";
+      else if (found >= total) p.hint.textContent = `You've met everyone in ${this.playerName}'s world.`;
+      else p.hint.textContent = 'Keep exploring — more people are out there.';
+    }
+  }
+
+  discoverNpc(npc) {
+    const p = this.portraitEls; if (!p || !p.card) return;
+    const data = npc.data;
+    const id = `${data.coord_x},${data.coord_y}`;
+    if (this.discovered.has(id)) return;
+    this.discovered.add(id);
+
+    const row = document.createElement('li');
+    row.className = 'p-row';
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'p-av';
+    BW.characters.drawToCanvas(canvas, data.sprite, 2);
+
+    const meta = document.createElement('div');
+    meta.className = 'p-meta';
+    const nm = document.createElement('div');
+    nm.className = 'p-nm';
+    nm.textContent = data.contributor_name || 'A friend';
+    meta.appendChild(nm);
+
+    row.appendChild(canvas);
+    row.appendChild(meta);
+
+    const msgs = [];
+    if (data.greeting) msgs.push(data.greeting);
+    (data.dialogue_lines || []).forEach((l) => msgs.push(l));
+    const message = msgs.join('\n') || '…';
+
+    if (p.tip) {
+      const show = () => {
+        p.tip.textContent = message;
+        p.tip.style.display = 'block';
+        const r = row.getBoundingClientRect();
+        const tw = p.tip.offsetWidth;
+        let left = r.right + 10;
+        if (left + tw > window.innerWidth - 8) left = r.left - tw - 10;
+        p.tip.style.left = Math.max(8, left) + 'px';
+        p.tip.style.top = r.top + 'px';
+      };
+      row.addEventListener('mouseenter', show);
+      row.addEventListener('mouseleave', () => { p.tip.style.display = 'none'; });
+    }
+
+    if (p.list) p.list.appendChild(row);
+    this.updatePortraitProgress();
   }
 
   drawMinimap() {
@@ -288,12 +395,9 @@ class WorldScene extends Phaser.Scene {
     this.coordSet.forEach((k) => {
       const [cx, cy] = k.split(',').map(Number);
       const p = cellPx(cx, cy);
-      if (this.visited.has(k)) {
-        const col = k === '0,0' ? THEME_COLORS.hub : (THEME_COLORS[themeByKey.get(k)] ?? 0x444444);
-        g.fillStyle(col, 1); g.fillRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
-      } else {
-        g.lineStyle(1, 0x55607a, 0.8); g.strokeRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
-      }
+      // Whole map is revealed (no fog) — colour every chunk by its biome.
+      const col = k === '0,0' ? THEME_COLORS.hub : (THEME_COLORS[themeByKey.get(k)] ?? 0x444444);
+      g.fillStyle(col, 1); g.fillRect(p.x + 1, p.y + 1, cell - 2, cell - 2);
     });
     this.npcs.forEach((n) => {
       const p = cellPx(Math.floor(n.x / CHUNK_PX), Math.floor(n.y / CHUNK_PX));
@@ -315,31 +419,17 @@ class WorldScene extends Phaser.Scene {
 
     const title = (world && world.world_name) || 'BirthdayWorld';
     const welcome = this.addHud(this.add.text(cam.width / 2, cam.height / 2, `Welcome to\n${title}`, {
-      fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff', align: 'center',
+      fontFamily: FONT, fontSize: '22px', color: '#ffffff', align: 'center',
       backgroundColor: 'rgba(10,12,24,0.7)', padding: { x: 18, y: 14 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(120));
     this.time.delayedCall(2200, () => this.tweens.add({ targets: welcome, alpha: 0, duration: 600, onComplete: () => welcome.destroy() }));
   }
 
-  // ---- fog of war ----------------------------------------------------------
-  addFog(cx, cy) {
-    const { x, y } = this.chunkOrigin(cx, cy);
-    const fog = this.add.rectangle(x, y, CHUNK_PX, CHUNK_PX, 0x05060c, 0.82).setOrigin(0, 0).setDepth(19);
-    this.addWorld(fog);
-    this.fogByKey.set(`${cx},${cy}`, fog);
-  }
-
+  // No fog of war — the whole world is visible from the start. markVisited is
+  // kept only to track which chunks the player has actually stepped into (used
+  // for the player dot trail / future stats); it no longer hides anything.
   markVisited(cx, cy) {
-    const key = `${cx},${cy}`;
-    if (this.visited.has(key)) return;
-    this.visited.add(key);
-    const fog = this.fogByKey.get(key);
-    if (fog) {
-      this.tweens.add({ targets: fog, alpha: 0, duration: 500, onComplete: () => fog.destroy() });
-      const { x, y } = this.chunkOrigin(cx, cy);
-      const bloom = this.addWorld(this.add.rectangle(x, y, CHUNK_PX, CHUNK_PX, 0xffffff, 0.5).setOrigin(0, 0).setDepth(19));
-      this.tweens.add({ targets: bloom, alpha: 0, duration: 600, onComplete: () => bloom.destroy() });
-    }
+    this.visited.add(`${cx},${cy}`);
   }
 
   addAmbient(cx, cy, theme) {
@@ -356,14 +446,15 @@ class WorldScene extends Phaser.Scene {
   setupDialogueUi() {
     const c = this.addHud(this.add.container(0, 0).setScrollFactor(0).setDepth(200).setVisible(false));
     const bg = this.add.graphics();
-    const avBg = this.add.circle(0, 0, 32, 0x1a2030).setStrokeStyle(2, 0xffffff, 0.7);
-    const av = this.add.text(0, 0, '🙂', { fontSize: '34px' }).setOrigin(0.5);
-    const name = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '16px', color: '#9fb0ff', fontStyle: 'bold' });
-    const body = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '16px', color: '#f0f2f8', lineSpacing: 4 });
-    const cont = this.add.text(0, 0, '▼ continue', { fontFamily: 'sans-serif', fontSize: '13px', color: '#aab3cc' }).setOrigin(1, 1).setVisible(false);
+    const avBg = this.add.rectangle(0, 0, 60, 60, 0x161e28).setStrokeStyle(2, 0xffffff, 0.18);
+    const av = this.add.image(0, 0, 'player_down_0').setOrigin(0.5).setScale(1.3);
+    const name = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: '#ffffff', fontStyle: 'bold' });
+    const role = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '11px', color: '#8fa0c8' });
+    const body = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '15px', color: '#f0f2f8', lineSpacing: 5 });
+    const cont = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '13px', color: '#aab3cc' }).setOrigin(1, 1).setVisible(false);
     const pips = this.add.container(0, 0);
-    c.add([bg, avBg, av, name, body, cont, pips]);
-    this.dlg = { container: c, bg, avBg, av, name, body, cont, pips };
+    c.add([bg, avBg, av, name, role, body, cont, pips]);
+    this.dlg = { container: c, bg, avBg, av, name, role, body, cont, pips };
     this.repositionDialogue();
     this.dlg.bg.on('pointerdown', () => { if (this.dialogue) this.onInteract(); });
   }
@@ -374,14 +465,15 @@ class WorldScene extends Phaser.Scene {
     const W = cam.width, H = cam.height, boxH = 150, margin = 16, boxY = H - boxH - 16;
     const d = this.dlg;
     d.bg.clear();
-    d.bg.fillStyle(0x0a0c14, 0.9); d.bg.fillRoundedRect(margin, boxY, W - margin * 2, boxH, 12);
-    d.bg.lineStyle(2, 0x6d8cff, 0.6); d.bg.strokeRoundedRect(margin, boxY, W - margin * 2, boxH, 12);
+    d.bg.fillStyle(0x0a0c14, 0.92); d.bg.fillRoundedRect(margin, boxY, W - margin * 2, boxH, 14);
+    d.bg.lineStyle(2, 0x2a3550, 0.9); d.bg.strokeRoundedRect(margin, boxY, W - margin * 2, boxH, 14);
     d.bg.setInteractive(new Phaser.Geom.Rectangle(margin, boxY, W - margin * 2, boxH), Phaser.Geom.Rectangle.Contains);
-    d.avBg.setPosition(margin + 50, boxY + 55); d.av.setPosition(margin + 50, boxY + 55);
+    d.avBg.setPosition(margin + 50, boxY + 58); d.av.setPosition(margin + 50, boxY + 58);
     d.name.setPosition(margin + 100, boxY + 18);
-    d.body.setPosition(margin + 100, boxY + 46); d.body.setWordWrapWidth(W - margin * 2 - 130);
-    d.cont.setPosition(W - margin - 20, boxY + boxH - 16);
-    d.pips.setPosition(margin + 100, boxY + boxH - 22);
+    d.role.setPosition(margin + 100, boxY + 40);
+    d.body.setPosition(margin + 100, boxY + 60); d.body.setWordWrapWidth(W - margin * 2 - 130);
+    d.cont.setPosition(W - margin - 18, boxY + boxH - 14);
+    d.pips.setPosition(margin + 100, boxY + boxH - 18);
   }
 
   onInteract() {
@@ -397,7 +489,7 @@ class WorldScene extends Phaser.Scene {
 
   popThenTalk(npc) {
     const pop = this.addWorld(this.add.text(npc.x, npc.container.y - 52, '!', {
-      fontFamily: 'sans-serif', fontSize: '22px', color: '#ffe27a', fontStyle: 'bold',
+      fontFamily: FONT, fontSize: '22px', color: '#ffe27a', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(31));
     this.tweens.add({ targets: pop, y: pop.y - 14, alpha: 0, duration: 350, onComplete: () => pop.destroy() });
     this.time.delayedCall(220, () => this.startDialogue(npc));
@@ -417,9 +509,11 @@ class WorldScene extends Phaser.Scene {
     let lines = Array.isArray(data.dialogue_lines) ? data.dialogue_lines.slice() : [];
     if (lines.length === 0) lines = [data.greeting || '…'];
     npc.visited = true;
+    this.discoverNpc(npc);
     this.dialogue = { npc, lines, index: 0, typing: false, body: this.dlg.body, typeEvent: null };
     this.dlg.name.setText(data.contributor_name || 'A friend');
-    this.dlg.av.setText(data.sprite || '🙂');
+    this.dlg.role.setText(BW.characters.get(data.sprite).name);
+    if (npc.texKey && this.textures.exists(npc.texKey)) this.dlg.av.setTexture(npc.texKey);
     this.buildPips(lines.length);
     this.dlg.container.setVisible(true);
     this.talkHint.setVisible(false);
@@ -447,66 +541,51 @@ class WorldScene extends Phaser.Scene {
   }
 
   showContinue(show) {
-    const last = this.dialogue && this.dialogue.index >= this.dialogue.lines.length - 1;
-    this.dlg.cont.setText(last ? '▼ close' : '▼ continue').setVisible(show);
+    const d = this.dialogue;
+    if (!d) { this.dlg.cont.setVisible(false); return; }
+    const last = d.index >= d.lines.length - 1;
+    const label = last ? 'close' : 'next ›';
+    this.dlg.cont.setText(`${label}  (${d.index + 1}/${d.lines.length})`).setVisible(show);
   }
   advanceDialogue() { const d = this.dialogue; if (d.index >= d.lines.length - 1) this.closeDialogue(); else this.typeLine(d.index + 1); }
   closeDialogue() { if (this.dialogue && this.dialogue.typeEvent) this.dialogue.typeEvent.remove(false); this.dialogue = null; this.dlg.container.setVisible(false); }
 
-  // ---- enemies -------------------------------------------------------------
-  activeEnemies() { const st = this.activeKey && this.chunkState.get(this.activeKey); return st && st.themed ? st.enemies : []; }
+  // ---- enemies (spawned once, roam the whole island, always visible) -------
+  activeEnemies() { return this.enemies; }
 
-  enterChunk(key) {
-    const st = this.chunkState.get(key);
-    if (!st || !st.themed) return;
-    const now = this.time.now;
-    if (!st.spawned) { this.spawnEnemies(key, st); st.spawned = true; }
-    else if (st.hidden) {
-      if (now - st.leftAt >= ENEMY_RESPAWN_MS) { this.despawnEnemies(st); this.spawnEnemies(key, st); }
-      else st.enemies.forEach((e) => { if (!e.consumed) e.container.setVisible(true); });
-      st.hidden = false;
-    }
+  spawnAllEnemies() {
+    this.chunkState.forEach((st, key) => {
+      if (st.themed) this.spawnEnemies(key);
+    });
   }
 
-  leaveChunk(key) {
-    const st = this.chunkState.get(key);
-    if (!st || !st.themed) return;
-    st.leftAt = this.time.now; st.hidden = true;
-    st.enemies.forEach((e) => e.container.setVisible(false));
-    this.projectiles.forEach((p) => p.gfx.destroy());
-    this.projectiles = [];
-  }
-
-  spawnEnemies(key, st) {
+  spawnEnemies(key) {
     const [cx, cy] = key.split(',').map(Number);
     const cfg = this.enemyConfig;
     const add = (type) => {
       const c = cfg[type];
       if (!c || !c.on) return;
       this.terrain.randomLandTiles(cx, cy, c.count || 1, 3).forEach((t) =>
-        st.enemies.push(this.makeEnemy(type, t.x, t.y, cx, cy)));
+        this.enemies.push(this.makeEnemy(type, t.x, t.y)));
     };
     add('love_heart'); add('hugger'); add('confetti_bomber'); add('birthday_cake');
   }
 
-  despawnEnemies(st) { st.enemies.forEach((e) => e.container.destroy()); st.enemies = []; }
-
-  makeEnemy(type, x, y, cx, cy) {
+  makeEnemy(type, x, y) {
     const container = this.add.container(x, y).setDepth(18);
     const sprite = this.add.sprite(0, 0, 'enemy_' + type).setOrigin(0.5, 0.5);
     container.add(sprite);
     this.addWorld(container);
-    const ox = cx * CHUNK_PX, oy = cy * CHUNK_PX;
     return {
       type, x, y, vx: 0, vy: 0, container, sprite,
-      bounds: { minX: ox + 24, maxX: ox + CHUNK_PX - 24, minY: oy + 24, maxY: oy + CHUNK_PX - 24 },
+      bounds: this.worldBounds,
       phase: Math.random() * Math.PI * 2, consumed: false, cooldownUntil: 0,
       fireAt: this.time.now + 1200 + Math.random() * 800, grabbing: false,
     };
   }
 
   updateEnemies(dt) {
-    const enemies = this.activeEnemies();
+    const enemies = this.enemies;
     if (!enemies.length) { this.updateProjectiles(dt); return; }
     const now = this.time.now;
     const px = this.player.x, py = this.player.y;
@@ -657,10 +736,10 @@ class WorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const c = this.addHud(this.add.container(0, 0).setScrollFactor(0).setDepth(300));
     const bg = this.add.rectangle(0, 0, cam.width, cam.height, 0x10131f, 0.85).setOrigin(0, 0);
-    const t1 = this.add.text(cam.width / 2, cam.height / 2 - 50, 'You were loved too hard.', { fontFamily: 'sans-serif', fontSize: '26px', color: '#ff9ecb', fontStyle: 'bold' }).setOrigin(0.5);
-    const t2 = this.add.text(cam.width / 2, cam.height / 2 - 12, 'Try again?', { fontFamily: 'sans-serif', fontSize: '18px', color: '#cdd6f0' }).setOrigin(0.5);
+    const t1 = this.add.text(cam.width / 2, cam.height / 2 - 50, 'You were loved too hard.', { fontFamily: FONT, fontSize: '24px', color: '#ff9ecb', fontStyle: 'bold' }).setOrigin(0.5);
+    const t2 = this.add.text(cam.width / 2, cam.height / 2 - 12, 'Try again?', { fontFamily: FONT, fontSize: '16px', color: '#cdd6f0' }).setOrigin(0.5);
     const btn = this.add.rectangle(cam.width / 2, cam.height / 2 + 44, 180, 50, 0x6d8cff).setStrokeStyle(2, 0xffffff, 0.5).setInteractive({ useHandCursor: true });
-    const btnT = this.add.text(cam.width / 2, cam.height / 2 + 44, '♥ Respawn', { fontFamily: 'sans-serif', fontSize: '18px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    const btnT = this.add.text(cam.width / 2, cam.height / 2 + 44, 'Respawn', { fontFamily: FONT, fontSize: '17px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     c.add([bg, t1, t2, btn, btnT]);
     btn.on('pointerdown', () => { c.destroy(); this.respawn(); });
   }
@@ -670,7 +749,7 @@ class WorldScene extends Phaser.Scene {
     const sp = this.terrain.spawnPoint();
     this.player.setPosition(sp.x, sp.y);
     this.invincibleUntil = this.time.now + 1500; this.frozenUntil = 0;
-    if (this.activeKey) { const st = this.chunkState.get(this.activeKey); if (st && st.themed) { this.despawnEnemies(st); st.spawned = false; st.hidden = false; } }
+    this.weapon.clear();
     this.activeKey = null;
   }
 
@@ -688,10 +767,10 @@ class WorldScene extends Phaser.Scene {
 
     // Throw + Talk buttons (touch only)
     this.throwBtn = this.addHud(this.add.circle(0, 0, 34, 0xffffff, 0.16).setScrollFactor(0).setDepth(150).setVisible(isTouch).setInteractive({ useHandCursor: true }));
-    this.throwLabel = this.addHud(this.add.text(0, 0, '✈', { fontSize: '24px' }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(isTouch));
+    this.throwLabel = this.addHud(this.add.image(0, 0, 'proj_airplane').setScale(1.7).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(isTouch));
     this.throwBtn.on('pointerdown', (p) => { p.event && p.event.stopPropagation && p.event.stopPropagation(); if (!this.dialogue && !this.gameOver) this.weapon.throw(); });
-    this.talkBtn = this.addHud(this.add.circle(0, 0, 30, 0xffe27a, 0.85).setScrollFactor(0).setDepth(150).setVisible(false).setInteractive({ useHandCursor: true }));
-    this.talkLabel = this.addHud(this.add.text(0, 0, '💬', { fontSize: '22px' }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false));
+    this.talkBtn = this.addHud(this.add.circle(0, 0, 30, 0xffe27a, 0.9).setScrollFactor(0).setDepth(150).setVisible(false).setInteractive({ useHandCursor: true }));
+    this.talkLabel = this.addHud(this.add.text(0, 0, 'TALK', { fontFamily: FONT, fontSize: '11px', color: '#10131f', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(151).setVisible(false));
     this.talkBtn.on('pointerdown', () => this.onInteract());
     this.layoutHud();
 
@@ -769,13 +848,16 @@ class WorldScene extends Phaser.Scene {
     const cx = Math.floor(this.player.x / CHUNK_PX), cy = Math.floor(this.player.y / CHUNK_PX);
     const key = `${cx},${cy}`;
     if (key !== this.activeKey) {
-      if (this.activeKey) this.leaveChunk(this.activeKey);
       this.activeKey = key;
       if (this.coordSet.has(key)) this.markVisited(cx, cy);
-      this.enterChunk(key);
     }
 
-    this.updateEnemies(dt);
+    // Action — enemies, their confetti, and thrown airplanes — freezes while a
+    // dialogue is open or on game-over, so the world pauses when you're talking.
+    if (!this.dialogue && !this.gameOver) {
+      this.updateEnemies(dt);
+      this.weapon.update(dt);
+    }
 
     // NPC idle bob + occasional flip
     this.npcs.forEach((n) => {
@@ -824,7 +906,7 @@ class WorldScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, n.x, n.y);
       if (d < bestD) { bestD = d; target = n; }
     }
-    if (!target) { this.compassArrow.setVisible(false); this.compassLabel.setText('all found ♥'); return; }
+    if (!target) { this.compassArrow.setVisible(false); this.compassLabel.setText('all found'); return; }
     this.compassArrow.setVisible(true);
     this.compassArrow.setRotation(Math.atan2(target.y - this.player.y, target.x - this.player.x) + Math.PI / 2);
     this.compassLabel.setText('friend');

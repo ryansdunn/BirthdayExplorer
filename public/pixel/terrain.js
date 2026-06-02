@@ -261,6 +261,27 @@ window.BW = window.BW || {};
       return h % n;
     }
 
+    // ── OCEAN APRON: a big tiled-water backdrop ringing the whole island so
+    //    the rectangular map edge is never visible — open water in every
+    //    direction. Sits behind every chunk (depth -2). ──
+    if (occupied.length) {
+      let minCx = Infinity, minCy = Infinity, maxCx = -Infinity, maxCy = -Infinity;
+      occupied.forEach((o) => {
+        minCx = Math.min(minCx, o.cx); minCy = Math.min(minCy, o.cy);
+        maxCx = Math.max(maxCx, o.cx); maxCy = Math.max(maxCy, o.cy);
+      });
+      const MARGIN = 8; // chunks of ocean padding on every side
+      const ax = (minCx - MARGIN) * CHUNK_PX, ay = (minCy - MARGIN) * CHUNK_PX;
+      const aw = (maxCx - minCx + 1 + MARGIN * 2) * CHUNK_PX;
+      const ah = (maxCy - minCy + 1 + MARGIN * 2) * CHUNK_PX;
+      const wkey = TK ? TK.water('hub', 0) : null;
+      if (wkey && scene.textures.exists(wkey)) {
+        scene.add.tileSprite(ax, ay, aw, ah, wkey).setOrigin(0, 0).setDepth(-2);
+      } else {
+        scene.add.rectangle(ax, ay, aw, ah, 0x1b4a63).setOrigin(0, 0).setDepth(-2);
+      }
+    }
+
     // Animated water overlays: only coast-adjacent water tiles.
     const waterImages = []; // {img, theme}
 

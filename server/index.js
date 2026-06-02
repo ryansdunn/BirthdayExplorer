@@ -202,7 +202,7 @@ app.get('/worlds/:id', (req, res) => {
   world.enemy_config = normaliseEnemyConfig(safeParseObject(world.enemy_config));
   world.mood = world.mood || 'adventure';
   world.terrain_style = world.terrain_style || 'island';
-  world.player_sprite = world.player_sprite || '🧑';
+  world.player_sprite = world.player_sprite || 'wanderer';
   world.player_name = world.player_name || world.birthday_person;
   world.world_name = world.world_name || `${world.birthday_person}'s World`;
   res.json(world);
@@ -224,7 +224,7 @@ app.put('/worlds/:id/setup', (req, res) => {
      WHERE id = ?`
   ).run(
     (world_name || '').toString().trim().slice(0, 60) || null,
-    (player_sprite || '🧑').toString(),
+    (player_sprite || 'wanderer').toString(),
     (player_name || '').toString().trim().slice(0, 40) || null,
     moodKey,
     JSON.stringify(config),
@@ -292,7 +292,7 @@ app.post('/worlds/:id/chunks', (req, res) => {
     y,
     theme,
     (contributor_name || '').toString().trim() || 'A friend',
-    (sprite || '🧙').toString(),
+    (sprite || 'guide').toString(),
     (greeting || '').toString().trim(),
     JSON.stringify(lines),
     created_at

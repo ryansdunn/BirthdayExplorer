@@ -61,26 +61,8 @@ window.BW = window.BW || {};
     birthday_cake: { base: 0xf3d9b0, icing: 0xff9ecb, candle: 0xffffff, flame: 0xffc94d, plate: 0xd9d9e0 },
   };
 
-  const player = {
-    skin: 0xf1c9a5, hair: 0x5a3a2a, jacket: 0x4d8bff, jacketDark: 0x356bd6,
-    pants: 0x2a3550, feet: 0x222a3a, accent: 0xffd24d,
-  };
+  // Character (player + NPC) palettes now live in characters.js as full design
+  // specs; this module keeps only terrain biome + enemy colours.
 
-  // Deterministic NPC body palette from a name string.
-  const NPC_JACKETS = [0xd76a6a, 0x6ad79a, 0xd7b86a, 0x6a9bd7, 0xb06ad7, 0xd76aa8, 0x6ad7cf, 0x9ad76a];
-  const NPC_HAIRS = [0x3a2a1a, 0x5a3a2a, 0x222222, 0x7a5a3a, 0x8a8a8a, 0xa64b2a];
-  const NPC_SKINS = [0xf1c9a5, 0xe0b48a, 0xc89060, 0x8a5a3a, 0xf6d9bd];
-  function forName(name) {
-    const s = BW.hashStringToSeed(name || 'friend');
-    return {
-      skin: NPC_SKINS[s % NPC_SKINS.length],
-      hair: NPC_HAIRS[(s >> 3) % NPC_HAIRS.length],
-      jacket: NPC_JACKETS[(s >> 6) % NPC_JACKETS.length],
-      jacketDark: shade(NPC_JACKETS[(s >> 6) % NPC_JACKETS.length], -0.25),
-      pants: shade(NPC_JACKETS[(s >> 9) % NPC_JACKETS.length], -0.4),
-      accent: 0xffffff,
-    };
-  }
-
-  BW.palettes = { shade, biome, enemy, player, forName, lighten: (c) => shade(c, 0.25), darken: (c) => shade(c, -0.25) };
+  BW.palettes = { shade, biome, enemy, lighten: (c) => shade(c, 0.25), darken: (c) => shade(c, -0.25) };
 })();

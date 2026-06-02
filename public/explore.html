@@ -5,13 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>BirthdayWorld — Explore</title>
   <style>
+    :root {
+      --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #10131f; }
     #game { width: 100vw; height: 100vh; }
     #loading {
       position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-      color: #cdd6f0; font-family: -apple-system, sans-serif; font-size: 1.1rem; z-index: 10;
+      color: #cdd6f0; font-family: var(--mono); font-size: 1.05rem; z-index: 10;
       background: #10131f;
+    }
+
+    /* ── Living portrait card (roster of people met) ─────────────────────── */
+    #portrait {
+      position: fixed; top: 16px; left: 16px; z-index: 20; display: none;
+      width: 300px; max-width: calc(100vw - 32px);
+      font-family: var(--mono); color: #eef3ff;
+      background: rgba(12, 16, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+    }
+    #portrait .p-head { display: flex; align-items: center; gap: 10px; }
+    #portrait .p-badge {
+      width: 38px; height: 38px; border-radius: 10px; flex: none;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(109, 140, 255, 0.18); border: 1px solid rgba(109, 140, 255, 0.4);
+      color: #9fb0ff; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em;
+    }
+    #portrait .p-title { min-width: 0; }
+    #pName { font-weight: 700; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #portrait .p-subtitle { font-size: 0.72rem; color: #8fa0c8; }
+    #pProgress { margin-top: 12px; font-size: 0.74rem; color: #aab3cc; letter-spacing: 0.03em; }
+    .p-track { margin-top: 5px; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    #pBar { height: 100%; width: 0%; background: linear-gradient(90deg, #6d8cff, #9b6dff); transition: width 0.4s ease; }
+    #pHint { margin-top: 12px; font-size: 0.74rem; line-height: 1.45; color: #c5cce0; }
+    #pList { list-style: none; margin: 10px 0 0; padding: 0; max-height: 38vh; overflow-y: auto; }
+    .p-row {
+      display: flex; align-items: center; gap: 9px; padding: 6px 6px;
+      border-radius: 8px; cursor: default;
+    }
+    .p-row:hover { background: rgba(255, 255, 255, 0.07); }
+    .p-av {
+      width: 22px; height: auto; flex: none; image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .p-nm { font-size: 0.82rem; font-weight: 600; }
+    /* hover tooltip showing the message a person wrote */
+    #pTip {
+      position: fixed; display: none; z-index: 30; max-width: 280px;
+      font-family: var(--mono); font-size: 0.76rem; line-height: 1.5; white-space: pre-wrap;
+      color: #fff8d0; background: rgba(20, 16, 8, 0.95);
+      border: 1px solid rgba(255, 226, 122, 0.35); border-radius: 10px;
+      padding: 9px 12px; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5); pointer-events: none;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
@@ -19,8 +67,25 @@
 <body>
   <div id="loading">Loading the world…</div>
   <div id="game"></div>
+
+  <div id="portrait" aria-label="Living portrait">
+    <div class="p-head">
+      <div class="p-badge" id="pBadge">RD</div>
+      <div class="p-title">
+        <div id="pName">Explorer</div>
+        <div class="p-subtitle">a living portrait</div>
+      </div>
+    </div>
+    <div id="pProgress">0/0 discovered</div>
+    <div class="p-track"><div id="pBar"></div></div>
+    <p id="pHint">Walk up to someone and press SPACE to talk.</p>
+    <ul id="pList"></ul>
+  </div>
+  <div id="pTip"></div>
+
   <script src="/pixel/noise.js"></script>
   <script src="/pixel/palettes.js"></script>
+  <script src="/pixel/characters.js"></script>
   <script src="/pixel/sprites.js"></script>
   <script src="/pixel/textures.js"></script>
   <script src="/pixel/terrain.js"></script>

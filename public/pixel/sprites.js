@@ -6,8 +6,8 @@
  * below.  Because generate() guards every key with scene.textures.exists(),
  * pre-registered keys will be skipped automatically — engine code unchanged.
  *
- * TEXTURE KEYS registered by generate(scene):
- *  Player (24×30 each, 16 keys):
+ * TEXTURE KEYS registered by generate(scene, { playerDesign }):
+ *  Player (24×36 each, 16 keys) — painted from BW.characters.get(playerDesign):
  *    player_down_0..3, player_up_0..3, player_left_0..3, player_right_0..3
  *  Enemies:
  *    enemy_love_heart      28×28
@@ -32,8 +32,8 @@
  *  player_walk_down, player_walk_up, player_walk_left, player_walk_right  (8 fps, repeat −1)
  *  player_idle_down, player_idle_up, player_idle_left, player_idle_right  (1 fps, single frame)
  *
- * NPC textures are generated on demand via npcTextureFor(scene, name) → key.
- * Key format: 'npc_' + BW.hashStringToSeed(name).  Size: 26×32.
+ * NPC textures are generated on demand via npcTextureFor(scene, designId) → key.
+ * Key format: 'npc_' + designId.  Size: 24×36 (front idle, shared per design).
  */
 
 window.BW = window.BW || {};
@@ -50,6 +50,14 @@ window.BW = window.BW || {};
   function bake(g, key, w, h) {
     g.generateTexture(key, w, h);
     g.destroy();
+  }
+
+  /** Adapt a Phaser Graphics object to the characters.js put(color,x,y,w,h) sink. */
+  function mkPut(g) {
+    return function (color, x, y, w, h) {
+      g.fillStyle(color, 1);
+      g.fillRect(x, y, w, h);
+    };
   }
 
   /** Fill a rectangle with a solid colour (alpha 1). */
@@ -73,135 +81,27 @@ window.BW = window.BW || {};
 
   // ─── PLAYER ─────────────────────────────────────────────────────────────
   /*
-   * Body layout (24 wide × 30 tall, 2-4 px grid):
-   *   rows  0..1   : hair top
-   *   rows  2..9   : head (skin) — 10px tall, centred horizontally
-   *   rows 10..11  : neck / collar
-   *   rows 12..21  : jacket torso
-   *   rows 22..25  : pants
-   *   rows 26..29  : feet/shoes
-   *
-   * Walk cycle per direction:
-   *   frame 0 — idle (feet together)
-   *   frame 1 — left foot forward
-   *   frame 2 — passing (feet together, mid-bob)
-   *   frame 3 — right foot forward
+   * The chunky humanoid body (24 wide × 36 tall) is painted by the shared
+   * BW.characters.paintFrame() so the in-game sprite matches the canvas
+   * preview the organiser picked. Frame 0 idle · 1/3 footsteps · 2 passing.
    */
 
   const OUTLINE_DARK = 0x111111;
 
-  function drawPlayerFrame(scene, key, p, dir, frame) {
+  function drawCharacterFrame(scene, key, spec, dir, frame) {
     if (scene.textures.exists(key)) return;
-    const W = 24, H = 30;
+    const C = BW.characters;
     const g = mkG(scene);
-
-    // ── head ──────────────────────────────────────────────────
-    const hx = 4, hy = 2, hw = 16, hh = 10;
-    // hair (top 3 px of head area)
-    rect(g, p.hair, hx, hy, hw, 3);
-    // skin face
-    rect(g, p.skin, hx, hy + 3, hw, hh - 3);
-    // ear bumps
-    rect(g, p.skin, hx - 1, hy + 4, 1, 3);
-    rect(g, p.skin, hx + hw, hy + 4, 1, 3);
-    // dark outline around head
-    outline(g, OUTLINE_DARK, hx, hy, hw, hh);
-
-    // direction-specific face detail
-    if (dir === 'down') {
-      // two eyes
-      rect(g, OUTLINE_DARK, hx + 3, hy + 4, 2, 2);
-      rect(g, OUTLINE_DARK, hx + 11, hy + 4, 2, 2);
-      // small nose
-      rect(g, p.hair, hx + 7, hy + 6, 2, 1);
-    } else if (dir === 'up') {
-      // back of hair only — nothing on face
-      rect(g, p.hair, hx, hy, hw, 5);
-    } else if (dir === 'left') {
-      // side profile — one eye, nose stub
-      rect(g, OUTLINE_DARK, hx + 2, hy + 4, 2, 2);
-      rect(g, p.hair, hx + hw - 3, hy, 3, 6);
-      rect(g, p.skin, hx - 2, hy + 6, 2, 2); // nose protrusion
-    } else { // right
-      rect(g, OUTLINE_DARK, hx + 12, hy + 4, 2, 2);
-      rect(g, p.hair, hx, hy, 3, 6);
-      rect(g, p.skin, hx + hw, hy + 6, 2, 2); // nose protrusion
-    }
-
-    // ── neck ──────────────────────────────────────────────────
-    rect(g, p.skin, 9, 12, 6, 2);
-
-    // ── torso / jacket ────────────────────────────────────────
-    // main jacket body
-    rect(g, p.jacket, 3, 14, 18, 10);
-    // jacket shading (darker on sides)
-    rect(g, p.jacketDark, 3, 14, 3, 10);
-    rect(g, p.jacketDark, 18, 14, 3, 10);
-    // collar / lapels
-    rect(g, OUTLINE_DARK, 3, 14, 18, 1);
-    rect(g, OUTLINE_DARK, 3, 23, 18, 1);
-    // accent (zipper / centre line)
-    rect(g, p.accent, 11, 15, 2, 8);
-    // outline torso
-    outline(g, OUTLINE_DARK, 3, 14, 18, 10);
-
-    // ── arms (vary slightly by direction) ─────────────────────
-    if (dir === 'left' || dir === 'right') {
-      // near arm fully visible
-      if (dir === 'left') {
-        rect(g, p.jacket, 0, 15, 3, 8);
-        rect(g, p.jacketDark, 0, 15, 1, 8);
-        rect(g, p.skin, 0, 22, 3, 2);
-      } else {
-        rect(g, p.jacket, 21, 15, 3, 8);
-        rect(g, p.jacketDark, 23, 15, 1, 8);
-        rect(g, p.skin, 21, 22, 3, 2);
-      }
-    } else {
-      // front/back — both arms visible
-      rect(g, p.jacket, 0, 15, 3, 8);
-      rect(g, p.jacket, 21, 15, 3, 8);
-      rect(g, p.jacketDark, 0, 15, 1, 8);
-      rect(g, p.jacketDark, 23, 15, 1, 8);
-      rect(g, p.skin, 0, 22, 3, 2);
-      rect(g, p.skin, 21, 22, 3, 2);
-    }
-
-    // ── pants ─────────────────────────────────────────────────
-    rect(g, p.pants, 3, 24, 18, 4);
-    // leg split
-    rect(g, OUTLINE_DARK, 11, 24, 2, 4);
-    outline(g, OUTLINE_DARK, 3, 24, 18, 4);
-
-    // ── feet (walk cycle animation) ───────────────────────────
-    // frame 0 / 2 = feet together (slight bob difference)
-    // frame 1 = left foot forward
-    // frame 3 = right foot forward
-    const bob = (frame === 2) ? 1 : 0; // mid-stride bob
-    if (frame === 0 || frame === 2) {
-      // Both feet together
-      rect(g, p.feet, 4, 28 + bob, 7, 2 - bob);
-      rect(g, p.feet, 13, 28 + bob, 7, 2 - bob);
-    } else if (frame === 1) {
-      // left foot forward (lower = forward in top-down)
-      rect(g, p.feet, 3, 28, 7, 2);
-      rect(g, p.feet, 14, 27, 6, 2);
-    } else {
-      // right foot forward
-      rect(g, p.feet, 4, 27, 6, 2);
-      rect(g, p.feet, 13, 28, 7, 2);
-    }
-
-    bake(g, key, W, H);
+    C.paintFrame(mkPut(g), spec, dir, frame);
+    bake(g, key, C.W, C.H);
   }
 
-  function generatePlayer(scene) {
-    const p = BW.palettes.player;
+  function generatePlayer(scene, designId) {
+    const spec = BW.characters.get(designId);
     const dirs = ['down', 'up', 'left', 'right'];
     for (const dir of dirs) {
       for (let f = 0; f < 4; f++) {
-        const key = `player_${dir}_${f}`;
-        drawPlayerFrame(scene, key, p, dir, f);
+        drawCharacterFrame(scene, `player_${dir}_${f}`, spec, dir, f);
       }
     }
   }
@@ -244,30 +144,39 @@ window.BW = window.BW || {};
     const g = mkG(scene);
     const pal = BW.palettes.enemy.love_heart;
 
-    // Chunky pixel heart using two rounded squares + triangle bottom
-    // Left lobe
-    rect(g, pal.dark, 1, 4, 10, 10);
-    rect(g, pal.body, 2, 3, 9, 10);
-    rect(g, pal.body, 1, 5, 10, 8);
-    // Right lobe
-    rect(g, pal.dark, 17, 4, 10, 10);
-    rect(g, pal.body, 17, 3, 9, 10);
-    rect(g, pal.body, 17, 5, 10, 8);
-    // Centre top fill
-    rect(g, pal.body, 10, 3, 8, 10);
-    // Triangle body widening
-    rect(g, pal.body, 2, 12, 24, 8);
-    rect(g, pal.dark, 2, 18, 24, 2); // shadow underside
-    // Narrowing to point
-    rect(g, pal.body, 4, 20, 20, 4);
-    rect(g, pal.body, 7, 24, 14, 2);
-    rect(g, pal.body, 11, 26, 6, 1);
-    // Highlight
-    rect(g, pal.light, 4, 4, 4, 4);
-    rect(g, pal.light, 20, 4, 4, 4);
-    // Eyes (two small dots)
-    rect(g, pal.eye, 8, 9, 3, 3);
-    rect(g, pal.eye, 17, 9, 3, 3);
+    // Symmetric chunky heart, built row-by-row so the silhouette reads clearly:
+    // two rounded top lobes with a dip between them, tapering to a point.
+    // [xStart, width] spans of the heart body per 2px-tall row band.
+    const rows = [
+      [4, 2],            // y4-6  : lobe tops (left)  + (right) handled by mirror
+      [2, 7],            // y6-8
+      [2, 24],           // y8-10 : lobes merge into full width
+      [2, 24],           // y10-12
+      [3, 22],           // y12-14
+      [4, 20],           // y14-16
+      [6, 16],           // y16-18
+      [8, 12],           // y18-20
+      [10, 8],           // y20-22
+      [12, 4],           // y22-24 : point
+    ];
+    // Top band needs two separate lobes (left + mirrored right) with a centre dip.
+    rect(g, pal.body, 4, 4, 7, 2); rect(g, pal.body, 17, 4, 7, 2);   // y4-6 lobes
+    rect(g, pal.body, 3, 6, 9, 2); rect(g, pal.body, 16, 6, 9, 2);   // y6-8 lobes
+    for (let i = 2; i < rows.length; i++) {
+      const y = 4 + i * 2;
+      rect(g, pal.body, rows[i][0], y, rows[i][1], 2);
+    }
+    // Lower-right shading for volume.
+    rect(g, pal.dark, 14, 8, 11, 12);
+    rect(g, pal.dark, 12, 18, 8, 4);
+    // Top-left highlights on each lobe.
+    rect(g, pal.light, 5, 6, 4, 3);
+    rect(g, pal.light, 18, 6, 4, 3);
+    // Cute eyes.
+    rect(g, pal.eye, 9, 10, 3, 3);
+    rect(g, pal.eye, 16, 10, 3, 3);
+    rect(g, pal.light, 10, 10, 1, 1);
+    rect(g, pal.light, 17, 10, 1, 1);
 
     bake(g, key, W, H);
   }
@@ -734,79 +643,27 @@ window.BW = window.BW || {};
 
   // ─── NPC BODY ───────────────────────────────────────────────────────────
   /*
-   * Front-facing idle NPC body — 26 wide × 32 tall.
-   * Uses BW.palettes.forName(name) for colour.
-   * Key: 'npc_' + BW.hashStringToSeed(name)
+   * Front-facing idle NPC body, painted from the contributor's chosen
+   * character design (BW.characters). Cached per design id so many NPCs
+   * sharing a design reuse one texture.  Key: 'npc_' + designId.
    */
-  function drawNpcBody(scene, key, pal) {
-    if (scene.textures.exists(key)) return;
-    const W = 26, H = 32;
-    const g = mkG(scene);
-
-    // ── head ──────────────────────────────────────────────────
-    const hx = 5, hy = 1, hw = 16, hh = 11;
-    rect(g, pal.hair, hx, hy, hw, 3);
-    rect(g, pal.skin, hx, hy + 3, hw, hh - 3);
-    rect(g, pal.skin, hx - 1, hy + 4, 1, 4);
-    rect(g, pal.skin, hx + hw, hy + 4, 1, 4);
-    // simple face
-    rect(g, 0x333333, hx + 3, hy + 5, 2, 2);
-    rect(g, 0x333333, hx + 11, hy + 5, 2, 2);
-    rect(g, 0x333333, hx + 6, hy + 8, 4, 1);
-    outline(g, OUTLINE_DARK, hx, hy, hw, hh);
-
-    // ── neck ──────────────────────────────────────────────────
-    rect(g, pal.skin, 10, 12, 6, 2);
-
-    // ── torso ─────────────────────────────────────────────────
-    rect(g, pal.jacket, 3, 14, 20, 10);
-    rect(g, pal.jacketDark, 3, 14, 3, 10);
-    rect(g, pal.jacketDark, 20, 14, 3, 10);
-    // collar
-    rect(g, OUTLINE_DARK, 3, 14, 20, 1);
-    rect(g, OUTLINE_DARK, 3, 23, 20, 1);
-    outline(g, OUTLINE_DARK, 3, 14, 20, 10);
-
-    // ── arms ──────────────────────────────────────────────────
-    rect(g, pal.jacket, 0, 15, 3, 8);
-    rect(g, pal.jacket, 23, 15, 3, 8);
-    rect(g, pal.jacketDark, 0, 15, 1, 8);
-    rect(g, pal.jacketDark, 25, 15, 1, 8);
-    rect(g, pal.skin, 0, 22, 3, 2);
-    rect(g, pal.skin, 23, 22, 3, 2);
-
-    // ── pants ─────────────────────────────────────────────────
-    rect(g, pal.pants, 3, 24, 20, 5);
-    rect(g, OUTLINE_DARK, 12, 24, 2, 5);
-    outline(g, OUTLINE_DARK, 3, 24, 20, 5);
-
-    // ── feet ──────────────────────────────────────────────────
-    rect(g, 0x222a3a, 4, 29, 8, 3);
-    rect(g, 0x222a3a, 14, 29, 8, 3);
-    outline(g, OUTLINE_DARK, 4, 29, 8, 3);
-    outline(g, OUTLINE_DARK, 14, 29, 8, 3);
-
-    bake(g, key, W, H);
-  }
-
-  // ─── NPC CACHE ──────────────────────────────────────────────────────────
   const _npcCache = {};
 
-  function npcTextureFor(scene, name) {
-    const seed = BW.hashStringToSeed(name || 'friend');
-    const key = 'npc_' + seed;
+  function npcTextureFor(scene, designId) {
+    const spec = BW.characters.get(designId);
+    const key = 'npc_' + spec.id;
     if (!_npcCache[key]) {
-      const pal = BW.palettes.forName(name);
-      drawNpcBody(scene, key, pal);
+      drawCharacterFrame(scene, key, spec, 'down', 0);
       _npcCache[key] = true;
     }
     return key;
   }
 
   // ─── MAIN ENTRY ─────────────────────────────────────────────────────────
-  function generate(scene) {
-    // Player frames (all 4 dirs × 4 frames = 16 textures)
-    generatePlayer(scene);
+  function generate(scene, opts) {
+    opts = opts || {};
+    // Player frames (all 4 dirs × 4 frames = 16 textures) for the chosen design
+    generatePlayer(scene, opts.playerDesign);
     // Player animations
     generatePlayerAnims(scene);
     // Enemies
