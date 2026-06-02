@@ -118,7 +118,21 @@
     </div>
   </div>
 
+  <script src="/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script>
+    const sb = window.supabase.createClient(
+      window.APP_CONFIG.supabaseUrl,
+      window.APP_CONFIG.supabaseAnonKey
+    );
+
+    let session = null;
+    sb.auth.onAuthStateChange((event, s) => {
+      if (event !== 'INITIAL_SESSION') return;
+      if (!s) { location.replace('/auth'); return; }
+      session = s;
+    });
+
     const form = document.getElementById('form');
     const errEl = document.getElementById('err');
     const submitBtn = document.getElementById('submit');
@@ -131,7 +145,10 @@
       try {
         const res = await fetch('/worlds', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
           body: JSON.stringify({
             birthday_person: document.getElementById('person').value,
             birthday_date: document.getElementById('date').value,

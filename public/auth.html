@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BirthdayWorld — Sign in</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
+      color: #f0f2f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; }
+    .sub { margin: 0 0 24px; color: #aab3cc; font-size: 0.95rem; }
+    .tabs {
+      display: flex;
+      margin-bottom: 22px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .tab {
+      flex: 1; padding: 10px; text-align: center; cursor: pointer;
+      background: rgba(0, 0, 0, 0.2); color: #aab3cc; font-size: 0.9rem;
+      border: none; font-family: inherit;
+    }
+    .tab.active { background: rgba(109, 140, 255, 0.25); color: #fff; font-weight: 600; }
+    label { display: block; font-size: 0.85rem; color: #c5cce0; margin: 16px 0 6px; }
+    input {
+      width: 100%; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.25); color: #fff;
+      font-size: 1rem; font-family: inherit;
+    }
+    input:focus { outline: 2px solid #6d8cff; border-color: transparent; }
+    button.submit {
+      margin-top: 22px; width: 100%; padding: 14px; border: none;
+      border-radius: 10px; background: linear-gradient(135deg, #6d8cff, #9b6dff);
+      color: #fff; font-size: 1.05rem; font-weight: 600; cursor: pointer;
+      font-family: inherit;
+    }
+    button.submit:disabled { opacity: 0.6; cursor: default; }
+    .msg { margin-top: 12px; font-size: 0.9rem; min-height: 1em; }
+    .msg.err { color: #ff9b9b; }
+    .msg.info { color: #9fb0ff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>BirthdayWorld</h1>
+    <p class="sub">Sign in to create and manage worlds.</p>
+    <div class="tabs">
+      <button class="tab active" id="signinTab" type="button">Sign in</button>
+      <button class="tab" id="signupTab" type="button">Sign up</button>
+    </div>
+    <form id="form">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required />
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <button class="submit" id="submit" type="submit">Sign in</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    const sb = window.supabase.createClient(
+      window.APP_CONFIG.supabaseUrl,
+      window.APP_CONFIG.supabaseAnonKey
+    );
+
+    sb.auth.onAuthStateChange((event, s) => {
+      if (event === 'INITIAL_SESSION' && s) location.replace('/dashboard');
+    });
+
+    let mode = 'signin';
+    const signinTab = document.getElementById('signinTab');
+    const signupTab = document.getElementById('signupTab');
+    const submitBtn = document.getElementById('submit');
+    const msgEl = document.getElementById('msg');
+
+    signinTab.addEventListener('click', () => {
+      mode = 'signin';
+      signinTab.classList.add('active');
+      signupTab.classList.remove('active');
+      submitBtn.textContent = 'Sign in';
+      document.getElementById('password').autocomplete = 'current-password';
+      msgEl.textContent = '';
+      msgEl.className = 'msg';
+    });
+
+    signupTab.addEventListener('click', () => {
+      mode = 'signup';
+      signupTab.classList.add('active');
+      signinTab.classList.remove('active');
+      submitBtn.textContent = 'Create account';
+      document.getElementById('password').autocomplete = 'new-password';
+      msgEl.textContent = '';
+      msgEl.className = 'msg';
+    });
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msgEl.textContent = '';
+      msgEl.className = 'msg';
+      submitBtn.disabled = true;
+      submitBtn.textContent = mode === 'signin' ? 'Signing in…' : 'Creating account…';
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      let error;
+      if (mode === 'signin') {
+        ({ error } = await sb.auth.signInWithPassword({ email, password }));
+      } else {
+        ({ error } = await sb.auth.signUp({ email, password }));
+      }
+
+      if (error) {
+        msgEl.textContent = error.message;
+        msgEl.className = 'msg err';
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+        return;
+      }
+
+      if (mode === 'signup') {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) {
+          location.replace('/dashboard');
+        } else {
+          msgEl.textContent = 'Check your email to confirm your account, then sign in.';
+          msgEl.className = 'msg info';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Create account';
+        }
+        return;
+      }
+
+      location.replace('/dashboard');
+    });
+  </script>
+</body>
+</html>

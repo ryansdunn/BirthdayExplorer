@@ -90,8 +90,19 @@
     }
     button.submit:disabled { opacity: 0.6; cursor: default; }
     .err { color: #ff9b9b; margin-top: 12px; font-size: 0.9rem; min-height: 1em; }
-    .done { display: none; text-align: center; padding: 20px 6px; }
+    .done { display: none; padding: 4px 0; }
     .done.show { display: block; }
+    .link-row {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px; padding: 12px 14px; margin-top: 12px;
+    }
+    .link-row .lbl { font-size: 0.78rem; color: #9fb0ff; text-transform: uppercase; letter-spacing: 0.05em; }
+    .link-row .url { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+    .link-row .url input { font-size: 0.82rem; padding: 8px 10px; }
+    .copy { width: auto; margin: 0; padding: 8px 12px; font-size: 0.8rem;
+      background: rgba(255,255,255,0.12); border: none; border-radius: 8px;
+      color: #fff; cursor: pointer; font-family: var(--mono); flex: none; }
   </style>
 </head>
 <body>
@@ -142,15 +153,46 @@
     </form>
 
     <div class="done" id="done">
-      <h2>World saved!</h2>
-      <p class="sub">Now share the contributor and explorer links from the create page.</p>
-      <a id="exploreNow" href="#" style="color:#9fb0ff; font-weight:600;">Preview the explorer →</a>
+      <h2 style="margin:0 0 4px;">World saved!</h2>
+      <p class="sub">Share these links to bring the world to life.</p>
+
+      <div class="link-row">
+        <div class="lbl">Contributor link — send to friends</div>
+        <div class="url">
+          <input id="contribUrl" type="text" readonly />
+          <button class="copy" data-target="contribUrl" type="button">Copy</button>
+        </div>
+      </div>
+
+      <div class="link-row">
+        <div class="lbl">Explorer link — send to the birthday person</div>
+        <div class="url">
+          <input id="exploreUrl" type="text" readonly />
+          <button class="copy" data-target="exploreUrl" type="button">Copy</button>
+        </div>
+      </div>
+
+      <a id="exploreNow" href="#" style="display:block; margin-top:16px; color:#9fb0ff; font-weight:600; text-align:center;">Preview the explorer →</a>
     </div>
   </div>
 
+  <script src="/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="/pixel/palettes.js"></script>
   <script src="/pixel/characters.js"></script>
   <script>
+    const sb = window.supabase.createClient(
+      window.APP_CONFIG.supabaseUrl,
+      window.APP_CONFIG.supabaseAnonKey
+    );
+
+    let session = null;
+    sb.auth.onAuthStateChange((event, s) => {
+      if (event !== 'INITIAL_SESSION') return;
+      if (!s) { location.replace('/auth'); return; }
+      session = s;
+    });
+
     const worldId = location.pathname.split('/').pop();
 
     const ENEMY_DEFS = [
@@ -295,6 +337,17 @@
       })
       .catch(() => applyConfig(PRESETS.adventure));
 
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.copy');
+      if (!btn) return;
+      const input = document.getElementById(btn.dataset.target);
+      if (!input) return;
+      input.select();
+      navigator.clipboard?.writeText(input.value);
+      btn.textContent = 'Copied!';
+      setTimeout(() => (btn.textContent = 'Copy'), 1500);
+    });
+
     const form = document.getElementById('form');
     const submitBtn = document.getElementById('submit');
     const errEl = document.getElementById('err');
@@ -312,7 +365,10 @@
       try {
         const res = await fetch(`/worlds/${worldId}/setup`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
           body: JSON.stringify({
             world_name: document.getElementById('worldName').value,
             player_sprite: selectedDesign,
@@ -326,6 +382,9 @@
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || 'Something went wrong');
         }
+        const base = location.origin;
+        document.getElementById('contribUrl').value = `${base}/contribute/${worldId}`;
+        document.getElementById('exploreUrl').value = `${base}/explore/${worldId}`;
         document.getElementById('exploreNow').href = `/explore/${worldId}`;
         form.style.display = 'none';
         document.getElementById('done').classList.add('show');

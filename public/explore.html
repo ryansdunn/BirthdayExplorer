@@ -28,16 +28,20 @@
       box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(4px);
     }
-    #portrait .p-head { display: flex; align-items: center; gap: 10px; }
-    #portrait .p-badge {
-      width: 38px; height: 38px; border-radius: 10px; flex: none;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(109, 140, 255, 0.18); border: 1px solid rgba(109, 140, 255, 0.4);
-      color: #9fb0ff; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.04em;
+    #pHappyBday {
+      font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em;
+      background: linear-gradient(90deg, #a78bff, #6d8cff, #a78bff);
+      background-size: 200% auto;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: hb-shimmer 3s linear infinite;
+      text-shadow: none;
+      line-height: 1.3; padding-bottom: 2px;
     }
-    #portrait .p-title { min-width: 0; }
-    #pName { font-weight: 700; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #portrait .p-subtitle { font-size: 0.72rem; color: #8fa0c8; }
+    @keyframes hb-shimmer {
+      0% { background-position: 0% center; }
+      100% { background-position: 200% center; }
+    }
     #pProgress { margin-top: 12px; font-size: 0.74rem; color: #aab3cc; letter-spacing: 0.03em; }
     .p-track { margin-top: 5px; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
     #pBar { height: 100%; width: 0%; background: linear-gradient(90deg, #6d8cff, #9b6dff); transition: width 0.4s ease; }
@@ -69,13 +73,7 @@
   <div id="game"></div>
 
   <div id="portrait" aria-label="Living portrait">
-    <div class="p-head">
-      <div class="p-badge" id="pBadge">RD</div>
-      <div class="p-title">
-        <div id="pName">Explorer</div>
-        <div class="p-subtitle">a living portrait</div>
-      </div>
-    </div>
+    <div id="pHappyBday">Happy Birthday</div>
     <div id="pProgress">0/0 discovered</div>
     <div class="p-track"><div id="pBar"></div></div>
     <p id="pHint">Walk up to someone and press SPACE to talk.</p>

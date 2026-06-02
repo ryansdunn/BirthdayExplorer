@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BirthdayWorld — Dashboard</title>
+  <style>
+    :root { color-scheme: dark; --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--mono);
+      background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
+      color: #f0f2f8;
+      min-height: 100vh;
+      padding: 36px 16px;
+    }
+    .header {
+      max-width: 720px; margin: 0 auto 28px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .header h1 { margin: 0; font-size: 1.5rem; }
+    .header-right { display: flex; gap: 10px; align-items: center; }
+    button.new-world {
+      padding: 10px 18px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #6d8cff, #9b6dff);
+      color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      font-family: var(--mono);
+    }
+    button.signout {
+      padding: 10px 14px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px;
+      background: transparent; color: #aab3cc; font-size: 0.85rem; cursor: pointer;
+      font-family: var(--mono);
+    }
+    button.signout:hover { background: rgba(255, 255, 255, 0.06); }
+    .grid {
+      max-width: 720px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;
+    }
+    .world-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px; padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .world-card h2 { margin: 0 0 3px; font-size: 1.05rem; }
+    .world-card .for { color: #aab3cc; font-size: 0.85rem; margin: 0 0 2px; }
+    .world-card .meta { color: #6a7494; font-size: 0.78rem; margin: 0; }
+    .divider { border: none; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 14px 0 12px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .action-btn {
+      padding: 7px 13px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none; font-family: var(--mono);
+      display: inline-block;
+    }
+    .action-btn.primary { background: linear-gradient(135deg, #6d8cff, #9b6dff); color: #fff; }
+    .action-btn.ghost { background: rgba(255, 255, 255, 0.1); color: #cdd6f0; border: 1px solid rgba(255, 255, 255, 0.15); }
+    .action-btn.share { background: rgba(0, 0, 0, 0.3); color: #9fb0ff; border: 1px solid rgba(109, 140, 255, 0.3); }
+    .share-panel { display: none; margin-top: 12px; }
+    .share-panel.open { display: block; }
+    .share-row { margin-top: 8px; }
+    .share-row .lbl { font-size: 0.72rem; color: #9fb0ff; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .share-row .url-row { display: flex; gap: 6px; align-items: center; }
+    .share-row input {
+      flex: 1; padding: 7px 10px; border-radius: 8px; font-size: 0.77rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.3); color: #fff; font-family: var(--mono);
+    }
+    .share-row button {
+      padding: 7px 10px; border-radius: 8px; font-size: 0.75rem; white-space: nowrap;
+      background: rgba(255, 255, 255, 0.1); color: #cdd6f0;
+      border: 1px solid rgba(255, 255, 255, 0.15); cursor: pointer; font-family: var(--mono);
+    }
+    .empty {
+      max-width: 720px; margin: 60px auto; text-align: center; color: #aab3cc;
+    }
+    .empty h2 { font-size: 1.1rem; margin: 0 0 8px; color: #f0f2f8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Your Worlds</h1>
+    <div class="header-right">
+      <button class="new-world" id="newWorld">+ New world</button>
+      <button class="signout" id="signout">Sign out</button>
+    </div>
+  </div>
+  <div class="grid" id="grid">
+    <p style="color:#aab3cc;font-size:0.9rem;grid-column:1/-1;">Loading…</p>
+  </div>
+
+  <script src="/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    const sb = window.supabase.createClient(
+      window.APP_CONFIG.supabaseUrl,
+      window.APP_CONFIG.supabaseAnonKey
+    );
+
+    let session = null;
+    let worldsLoaded = false;
+
+    function init() {
+      sb.auth.onAuthStateChange((event, s) => {
+        // Accept the session from any positive auth event, not just INITIAL_SESSION,
+        // since INITIAL_SESSION can briefly fire null while a token refresh is in flight.
+        if (s && !worldsLoaded) {
+          worldsLoaded = true;
+          session = s;
+          loadWorlds();
+        } else if (event === 'INITIAL_SESSION' && !s) {
+          location.replace('/auth');
+        } else if (event === 'SIGNED_OUT') {
+          location.replace('/auth');
+        }
+      });
+    }
+
+    async function loadWorlds() {
+      const grid = document.getElementById('grid');
+      const res = await fetch('/dashboard/worlds', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      // Only redirect on auth failure — other errors should surface in place.
+      if (res.status === 401) { location.replace('/auth'); return; }
+      if (!res.ok) {
+        grid.innerHTML = '<p style="color:#ff9b9b;grid-column:1/-1;">Failed to load worlds. Please refresh the page.</p>';
+        return;
+      }
+      renderWorlds(await res.json());
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderWorlds(worlds) {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      if (!worlds.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.style.gridColumn = '1 / -1';
+        empty.innerHTML = '<h2>No worlds yet</h2><p>Create your first birthday world to get started.</p>';
+        grid.appendChild(empty);
+        return;
+      }
+      worlds.forEach((w) => {
+        const base = location.origin;
+        const contribUrl = `${base}/contribute/${w.id}`;
+        const exploreUrl = `${base}/explore/${w.id}`;
+        const dateStr = w.birthday_date ? ` · ${esc(w.birthday_date)}` : '';
+        const created = new Date(w.created_at).toLocaleDateString(undefined, {
+          month: 'short', day: 'numeric', year: 'numeric',
+        });
+        const n = w.chunk_count;
+        const card = document.createElement('div');
+        card.className = 'world-card';
+        card.innerHTML = `
+          <h2>${esc(w.world_name)}</h2>
+          <p class="for">For ${esc(w.birthday_person)}${dateStr}</p>
+          <p class="meta">Created ${created} &middot; ${n} contributor${n !== 1 ? 's' : ''}</p>
+          <hr class="divider" />
+          <div class="actions">
+            <a class="action-btn primary" href="/setup/${esc(w.id)}">Setup</a>
+            <a class="action-btn ghost" href="/explore/${esc(w.id)}" target="_blank">Preview</a>
+            <button class="action-btn share" data-world="${esc(w.id)}">Share links</button>
+          </div>
+          <div class="share-panel" id="share-${esc(w.id)}">
+            <div class="share-row">
+              <div class="lbl">Contributor link — send to friends</div>
+              <div class="url-row">
+                <input type="text" readonly value="${esc(contribUrl)}" />
+                <button data-copy="${esc(contribUrl)}">Copy</button>
+              </div>
+            </div>
+            <div class="share-row">
+              <div class="lbl">Explorer link — send to birthday person</div>
+              <div class="url-row">
+                <input type="text" readonly value="${esc(exploreUrl)}" />
+                <button data-copy="${esc(exploreUrl)}">Copy</button>
+              </div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    document.getElementById('grid').addEventListener('click', (e) => {
+      const shareBtn = e.target.closest('[data-world]');
+      if (shareBtn) {
+        const panel = document.getElementById(`share-${shareBtn.dataset.world}`);
+        panel.classList.toggle('open');
+        shareBtn.textContent = panel.classList.contains('open') ? 'Hide links' : 'Share links';
+        return;
+      }
+      const copyBtn = e.target.closest('[data-copy]');
+      if (copyBtn) {
+        navigator.clipboard?.writeText(copyBtn.dataset.copy);
+        const orig = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => (copyBtn.textContent = orig), 1500);
+      }
+    });
+
+    document.getElementById('newWorld').addEventListener('click', () => {
+      location.href = '/create';
+    });
+
+    document.getElementById('signout').addEventListener('click', async () => {
+      await sb.auth.signOut();
+      location.replace('/auth');
+    });
+
+    init();
+  </script>
+</body>
+</html>

@@ -295,17 +295,13 @@ class WorldScene extends Phaser.Scene {
     this.discovered = new Set();
     const el = (id) => document.getElementById(id);
     this.portraitEls = {
-      card: el('portrait'), name: el('pName'), progress: el('pProgress'),
-      bar: el('pBar'), list: el('pList'), hint: el('pHint'), tip: el('pTip'), badge: el('pBadge'),
+      card: el('portrait'), hbd: el('pHappyBday'), progress: el('pProgress'),
+      bar: el('pBar'), list: el('pList'), hint: el('pHint'), tip: el('pTip'),
     };
     const p = this.portraitEls;
     if (!p.card) return;
     p.card.style.display = 'block';
-    if (p.name) p.name.textContent = this.playerName;
-    if (p.badge) {
-      const initials = this.playerName.trim().split(/\s+/).map((w) => w[0] || '').join('').slice(0, 2).toUpperCase();
-      p.badge.textContent = initials || 'BW';
-    }
+    if (p.hbd) p.hbd.textContent = `Happy Birthday, ${this.playerName}`;
     this.portraitTotal = this.npcs.length;
     this.updatePortraitProgress();
   }
@@ -319,7 +315,7 @@ class WorldScene extends Phaser.Scene {
       if (total === 0) p.hint.textContent = 'No one has planted a patch in this world yet.';
       else if (found === 0) p.hint.textContent = "You're a stranger here. Walk up to someone and press SPACE to talk.";
       else if (found >= total) p.hint.textContent = `You've met everyone in ${this.playerName}'s world.`;
-      else p.hint.textContent = 'Keep exploring — more people are out there.';
+      else p.hint.textContent = 'Explore the world, find messages from your loved ones.';
     }
   }
 

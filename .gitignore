@@ -4,3 +4,4 @@ birthdayworld.db-shm
 birthdayworld.db-wal
 *.log
 .DS_Store
+.env
