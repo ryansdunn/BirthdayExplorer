@@ -88,7 +88,18 @@
 
     <div class="links" id="links">
       <h1 style="font-size:1.2rem;">✨ Your world is ready</h1>
-      <p class="sub">Share these links:</p>
+      <p class="sub">First, set up the world — then share the links.</p>
+
+      <a id="setupLink" href="#" style="display:block; text-decoration:none;">
+        <div class="link-row" style="border-color: rgba(155,109,255,0.6); background: rgba(155,109,255,0.12);">
+          <div class="lbl" style="color:#c9b3ff;">⚙️ Step 1 — Set up your world</div>
+          <div style="margin-top:6px; color:#fff; font-weight:600;">
+            Choose the mood, enemies & birthday character →
+          </div>
+        </div>
+      </a>
+
+      <p class="sub" style="margin-top:18px;">Step 2 — share these links:</p>
 
       <div class="link-row">
         <div class="lbl">Contributor link — send to friends</div>
@@ -133,6 +144,7 @@
         }
         const { id } = await res.json();
         const base = location.origin;
+        document.getElementById('setupLink').href = `${base}/setup/${id}`;
         document.getElementById('contribUrl').value = `${base}/contribute/${id}`;
         document.getElementById('exploreUrl').value = `${base}/explore/${id}`;
         document.getElementById('links').classList.add('show');

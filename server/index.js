@@ -20,7 +20,13 @@ db.exec(`
     id              TEXT PRIMARY KEY,
     birthday_person TEXT NOT NULL,
     birthday_date   TEXT,
-    created_at      TEXT NOT NULL
+    created_at      TEXT NOT NULL,
+    world_name      TEXT,
+    player_sprite   TEXT,
+    player_name     TEXT,
+    mood            TEXT,
+    enemy_config    TEXT,
+    terrain_style   TEXT
   );
 
   CREATE TABLE IF NOT EXISTS chunks (
@@ -39,6 +45,57 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_chunks_world ON chunks(world_id);
 `);
+
+// Lightweight migration: add any columns missing from older databases.
+const worldCols = new Set(db.prepare('PRAGMA table_info(worlds)').all().map((c) => c.name));
+for (const [col, type] of [
+  ['world_name', 'TEXT'],
+  ['player_sprite', 'TEXT'],
+  ['player_name', 'TEXT'],
+  ['mood', 'TEXT'],
+  ['enemy_config', 'TEXT'],
+  ['terrain_style', 'TEXT'],
+]) {
+  if (!worldCols.has(col)) db.exec(`ALTER TABLE worlds ADD COLUMN ${col} ${type}`);
+}
+
+// ---------------------------------------------------------------------------
+// Enemy config presets
+// ---------------------------------------------------------------------------
+const ENEMY_TYPES = ['love_heart', 'hugger', 'confetti_bomber', 'birthday_cake'];
+
+const MOOD_PRESETS = {
+  peaceful: {
+    love_heart: { on: false, count: 2 },
+    hugger: { on: false, count: 1 },
+    confetti_bomber: { on: false, count: 2 },
+    birthday_cake: { on: true, count: 1 },
+  },
+  adventure: {
+    love_heart: { on: true, count: 2 },
+    hugger: { on: true, count: 1 },
+    confetti_bomber: { on: false, count: 2 },
+    birthday_cake: { on: true, count: 1 },
+  },
+  chaotic: {
+    love_heart: { on: true, count: 4 },
+    hugger: { on: true, count: 3 },
+    confetti_bomber: { on: true, count: 3 },
+    birthday_cake: { on: true, count: 2 },
+  },
+};
+
+const DEFAULT_ENEMY_CONFIG = MOOD_PRESETS.adventure;
+
+function normaliseEnemyConfig(raw) {
+  const out = {};
+  for (const t of ENEMY_TYPES) {
+    const src = (raw && raw[t]) || DEFAULT_ENEMY_CONFIG[t];
+    const count = Math.max(1, Math.min(5, parseInt(src.count, 10) || 1));
+    out[t] = { on: !!src.on, count };
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // Spiral coordinate allocation
@@ -120,6 +177,9 @@ app.get('/contribute/:worldId', (_req, res) =>
 app.get('/explore/:worldId', (_req, res) =>
   res.sendFile(path.join(PUBLIC_DIR, 'explore.html'))
 );
+app.get('/setup/:worldId', (_req, res) =>
+  res.sendFile(path.join(PUBLIC_DIR, 'setup.html'))
+);
 
 // Create a world.
 app.post('/worlds', (req, res) => {
@@ -139,7 +199,39 @@ app.post('/worlds', (req, res) => {
 app.get('/worlds/:id', (req, res) => {
   const world = db.prepare('SELECT * FROM worlds WHERE id = ?').get(req.params.id);
   if (!world) return res.status(404).json({ error: 'world not found' });
+  world.enemy_config = normaliseEnemyConfig(safeParseObject(world.enemy_config));
+  world.mood = world.mood || 'adventure';
+  world.terrain_style = world.terrain_style || 'island';
+  world.player_sprite = world.player_sprite || '🧑';
+  world.player_name = world.player_name || world.birthday_person;
+  world.world_name = world.world_name || `${world.birthday_person}'s World`;
   res.json(world);
+});
+
+// Save organiser world setup (mood, enemy mix, player appearance, world name).
+app.put('/worlds/:id/setup', (req, res) => {
+  const world = db.prepare('SELECT id FROM worlds WHERE id = ?').get(req.params.id);
+  if (!world) return res.status(404).json({ error: 'world not found' });
+
+  const { world_name, player_sprite, player_name, mood, enemy_config, terrain_style } = req.body || {};
+  const moodKey = MOOD_PRESETS[mood] ? mood : 'adventure';
+  const terrainKey = terrain_style === 'archipelago' ? 'archipelago' : 'island';
+  const config = normaliseEnemyConfig(enemy_config);
+
+  db.prepare(
+    `UPDATE worlds
+       SET world_name = ?, player_sprite = ?, player_name = ?, mood = ?, enemy_config = ?, terrain_style = ?
+     WHERE id = ?`
+  ).run(
+    (world_name || '').toString().trim().slice(0, 60) || null,
+    (player_sprite || '🧑').toString(),
+    (player_name || '').toString().trim().slice(0, 40) || null,
+    moodKey,
+    JSON.stringify(config),
+    terrainKey,
+    req.params.id
+  );
+  res.json({ ok: true });
 });
 
 // Get all chunks for a world.
@@ -216,6 +308,16 @@ function safeParseLines(raw) {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+function safeParseObject(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
   }
 }
 

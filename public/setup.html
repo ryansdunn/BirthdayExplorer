@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BirthdayWorld — Set up</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% -10%, #2a3a6a, #10131f 60%);
+      color: #f0f2f8;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+    .card {
+      width: 100%; max-width: 520px; margin: 0 auto;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px; padding: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+    h1 { margin: 0 0 4px; font-size: 1.4rem; }
+    .sub { margin: 0 0 18px; color: #aab3cc; font-size: 0.95rem; }
+    .section { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); }
+    .section h2 { font-size: 1.05rem; margin: 0 0 4px; }
+    .section .hint { color: #98a1ba; font-size: 0.82rem; margin: 0 0 14px; }
+    label { display: block; font-size: 0.85rem; color: #c5cce0; margin: 14px 0 6px; font-weight: 600; }
+    input[type=text], select {
+      width: 100%; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.25); color: #fff; font-size: 1rem;
+    }
+    input:focus, select:focus { outline: 2px solid #6d8cff; border-color: transparent; }
+
+    .emoji-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .emoji-opt {
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; background: rgba(0,0,0,0.3);
+      border: 2px solid transparent; cursor: pointer; user-select: none;
+    }
+    .emoji-opt.sel { border-color: #6d8cff; background: rgba(109,140,255,0.25); }
+
+    .enemy {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(0,0,0,0.22); border-radius: 12px; padding: 12px 14px; margin-top: 12px;
+    }
+    .enemy .face { font-size: 1.7rem; width: 34px; text-align: center; }
+    .enemy .meta { flex: 1; min-width: 0; }
+    .enemy .meta .nm { font-weight: 600; font-size: 0.95rem; }
+    .enemy .meta .ds { font-size: 0.78rem; color: #98a1ba; }
+    .enemy .ctrl { display: flex; align-items: center; gap: 10px; }
+    .enemy input[type=range] { width: 90px; }
+    .cnt { width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+
+    /* toggle */
+    .switch { position: relative; width: 44px; height: 26px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; background: #444b63; border-radius: 26px;
+      transition: 0.2s; cursor: pointer;
+    }
+    .slider::before {
+      content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%; transition: 0.2s;
+    }
+    .switch input:checked + .slider { background: #6d8cff; }
+    .switch input:checked + .slider::before { transform: translateX(18px); }
+    .enemy.off { opacity: 0.5; }
+
+    button.submit {
+      margin-top: 28px; width: 100%; padding: 14px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #6d8cff, #9b6dff);
+      color: #fff; font-size: 1.05rem; font-weight: 600; cursor: pointer;
+    }
+    button.submit:disabled { opacity: 0.6; cursor: default; }
+    .err { color: #ff9b9b; margin-top: 12px; font-size: 0.9rem; min-height: 1em; }
+    .done { display: none; text-align: center; padding: 20px 6px; }
+    .done.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>⚙️ Set up the world</h1>
+    <p class="sub" id="sub">Configure <span id="personName">the world</span> before sharing it.</p>
+
+    <form id="form">
+      <div class="section" style="border-top:none; padding-top:0; margin-top:8px;">
+        <h2>World name</h2>
+        <p class="hint">Shown on the explorer's welcome screen.</p>
+        <input id="worldName" type="text" placeholder="e.g. Maya's World" maxlength="60" />
+      </div>
+
+      <div class="section">
+        <h2>Birthday person's character</h2>
+        <p class="hint">Their explorer sprite and the name floating above them.</p>
+        <label>Pick a character</label>
+        <div class="emoji-row" id="emojiRow"></div>
+        <label for="playerName">Name above their head</label>
+        <input id="playerName" type="text" placeholder="e.g. Maya" maxlength="40" />
+      </div>
+
+      <div class="section">
+        <h2>World shape</h2>
+        <p class="hint">How the contributed lands form the world's terrain.</p>
+        <div class="theme-grid" id="shapeGrid" style="grid-template-columns: repeat(2, 1fr);"></div>
+      </div>
+
+      <div class="section">
+        <h2>World mood</h2>
+        <p class="hint">A quick preset for how lively the world is.</p>
+        <select id="mood">
+          <option value="peaceful">😌 Peaceful — just friends & cakes, no enemies</option>
+          <option value="adventure" selected>⚔️ Adventure — a balanced wholesome mix</option>
+          <option value="chaotic">🎉 Chaotic — everything, everywhere</option>
+        </select>
+      </div>
+
+      <div class="section">
+        <h2>Enemy mix</h2>
+        <p class="hint">Wholesome "enemies" that roam each zone. Tweak per type.</p>
+        <div id="enemies"></div>
+      </div>
+
+      <button class="submit" type="submit" id="submit">Save world setup</button>
+      <div class="err" id="err"></div>
+    </form>
+
+    <div class="done" id="done">
+      <div style="font-size:3rem;">🎈</div>
+      <h2>World saved!</h2>
+      <p class="sub">Now share the contributor and explorer links from the create page.</p>
+      <a id="exploreNow" href="#" style="color:#9fb0ff; font-weight:600;">Preview the explorer →</a>
+    </div>
+  </div>
+
+  <script>
+    const worldId = location.pathname.split('/').pop();
+
+    const PLAYER_EMOJIS = ['🧑', '👩', '👨', '🧒', '🦸', '🧚', '🐱', '🐶'];
+    const ENEMY_DEFS = [
+      { id: 'love_heart', face: '💖', nm: 'Love Heart', ds: 'Floats over and bumps you with affection.' },
+      { id: 'hugger', face: '🤗', nm: 'Hugger', ds: 'Charges in for a big squeezy hug.' },
+      { id: 'confetti_bomber', face: '⭐', nm: 'Confetti Bomber', ds: 'Keeps its distance, lobs confetti.' },
+      { id: 'birthday_cake', face: '🎂', nm: 'Birthday Cake', ds: 'A treat — walk into it to heal a heart.' },
+    ];
+    const PRESETS = {
+      peaceful: { love_heart: { on: false, count: 2 }, hugger: { on: false, count: 1 }, confetti_bomber: { on: false, count: 2 }, birthday_cake: { on: true, count: 1 } },
+      adventure: { love_heart: { on: true, count: 2 }, hugger: { on: true, count: 1 }, confetti_bomber: { on: false, count: 2 }, birthday_cake: { on: true, count: 1 } },
+      chaotic: { love_heart: { on: true, count: 4 }, hugger: { on: true, count: 3 }, confetti_bomber: { on: true, count: 3 }, birthday_cake: { on: true, count: 2 } },
+    };
+
+    const SHAPE_DEFS = [
+      { id: 'island', ic: '🏝', label: 'One island', color: '#2d6a3a' },
+      { id: 'archipelago', ic: '⛵', label: 'Archipelago', color: '#1a6b8a' },
+    ];
+
+    let selectedEmoji = PLAYER_EMOJIS[0];
+    let selectedShape = 'island';
+
+    const shapeGrid = document.getElementById('shapeGrid');
+    SHAPE_DEFS.forEach((s, i) => {
+      const div = document.createElement('div');
+      div.className = 'theme-opt' + (i === 0 ? ' sel' : '');
+      div.dataset.shape = s.id;
+      div.style.background = s.color;
+      div.innerHTML = `<span class="ic">${s.ic}</span>${s.label}`;
+      div.addEventListener('click', () => {
+        selectedShape = s.id;
+        shapeGrid.querySelectorAll('.theme-opt').forEach((el) => el.classList.remove('sel'));
+        div.classList.add('sel');
+      });
+      shapeGrid.appendChild(div);
+    });
+
+    const emojiRow = document.getElementById('emojiRow');
+    PLAYER_EMOJIS.forEach((e, i) => {
+      const div = document.createElement('div');
+      div.className = 'emoji-opt' + (i === 0 ? ' sel' : '');
+      div.textContent = e;
+      div.addEventListener('click', () => {
+        selectedEmoji = e;
+        document.querySelectorAll('.emoji-opt').forEach((el) => el.classList.remove('sel'));
+        div.classList.add('sel');
+      });
+      emojiRow.appendChild(div);
+    });
+
+    // Build enemy rows
+    const enemiesWrap = document.getElementById('enemies');
+    const rows = {};
+    ENEMY_DEFS.forEach((def) => {
+      const row = document.createElement('div');
+      row.className = 'enemy';
+      row.innerHTML = `
+        <div class="face">${def.face}</div>
+        <div class="meta"><div class="nm">${def.nm}</div><div class="ds">${def.ds}</div></div>
+        <div class="ctrl">
+          <input type="range" min="1" max="5" step="1" value="2" />
+          <span class="cnt">2</span>
+          <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+        </div>`;
+      enemiesWrap.appendChild(row);
+      const range = row.querySelector('input[type=range]');
+      const cnt = row.querySelector('.cnt');
+      const toggle = row.querySelector('input[type=checkbox]');
+      range.addEventListener('input', () => { cnt.textContent = range.value; });
+      toggle.addEventListener('change', () => row.classList.toggle('off', !toggle.checked));
+      rows[def.id] = { row, range, cnt, toggle };
+    });
+
+    function applyConfig(cfg) {
+      ENEMY_DEFS.forEach((def) => {
+        const r = rows[def.id];
+        const c = cfg[def.id] || { on: false, count: 2 };
+        r.toggle.checked = !!c.on;
+        r.range.value = c.count;
+        r.cnt.textContent = c.count;
+        r.row.classList.toggle('off', !c.on);
+      });
+    }
+
+    const moodSel = document.getElementById('mood');
+    moodSel.addEventListener('change', () => applyConfig(PRESETS[moodSel.value]));
+
+    // Load existing world config
+    fetch(`/worlds/${worldId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((w) => {
+        if (!w) return;
+        document.getElementById('personName').textContent = `${w.birthday_person}'s world`;
+        document.getElementById('worldName').value = w.world_name || `${w.birthday_person}'s World`;
+        document.getElementById('playerName').value = w.player_name || w.birthday_person;
+        moodSel.value = w.mood || 'adventure';
+        selectedShape = w.terrain_style === 'archipelago' ? 'archipelago' : 'island';
+        shapeGrid.querySelectorAll('.theme-opt').forEach((el) =>
+          el.classList.toggle('sel', el.dataset.shape === selectedShape));
+        if (w.player_sprite && PLAYER_EMOJIS.includes(w.player_sprite)) {
+          selectedEmoji = w.player_sprite;
+          document.querySelectorAll('.emoji-opt').forEach((el) =>
+            el.classList.toggle('sel', el.textContent === w.player_sprite));
+        }
+        applyConfig(w.enemy_config || PRESETS.adventure);
+      })
+      .catch(() => applyConfig(PRESETS.adventure));
+
+    const form = document.getElementById('form');
+    const submitBtn = document.getElementById('submit');
+    const errEl = document.getElementById('err');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.textContent = '';
+      const enemy_config = {};
+      ENEMY_DEFS.forEach((def) => {
+        const r = rows[def.id];
+        enemy_config[def.id] = { on: r.toggle.checked, count: parseInt(r.range.value, 10) };
+      });
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+      try {
+        const res = await fetch(`/worlds/${worldId}/setup`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            world_name: document.getElementById('worldName').value,
+            player_sprite: selectedEmoji,
+            player_name: document.getElementById('playerName').value,
+            mood: moodSel.value,
+            terrain_style: selectedShape,
+            enemy_config,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Something went wrong');
+        }
+        document.getElementById('exploreNow').href = `/explore/${worldId}`;
+        form.style.display = 'none';
+        document.getElementById('done').classList.add('show');
+      } catch (err) {
+        errEl.textContent = err.message;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save world setup';
+      }
+    });
+  </script>
+</body>
+</html>
