@@ -192,7 +192,7 @@
       });
     }
 
-    document.getElementById('grid').addEventListener('click', (e) => {
+    document.getElementById('grid').addEventListener('click', async (e) => {
       const shareBtn = e.target.closest('[data-world]');
       if (shareBtn) {
         const panel = document.getElementById(`share-${shareBtn.dataset.world}`);
