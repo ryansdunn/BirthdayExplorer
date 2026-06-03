@@ -58,6 +58,22 @@
     .action-btn.share { background: rgba(0, 0, 0, 0.3); color: #9fb0ff; border: 1px solid rgba(109, 140, 255, 0.3); }
     .action-btn.archive { background: rgba(0, 0, 0, 0.2); color: #6a7494; border: 1px solid rgba(255, 255, 255, 0.1); }
     .action-btn.archive:hover { color: #ff9b9b; border-color: rgba(255, 100, 100, 0.3); }
+    .action-btn.unarchive { background: rgba(0, 0, 0, 0.2); color: #6a7494; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .action-btn.unarchive:hover { color: #a0f0b0; border-color: rgba(100, 220, 130, 0.3); }
+    .archived-toggle {
+      max-width: 720px; margin: 20px auto 0; text-align: right;
+    }
+    .archived-toggle button {
+      background: none; border: none; color: #6a7494; font-size: 0.8rem;
+      font-family: var(--mono); cursor: pointer; padding: 4px 0;
+    }
+    .archived-toggle button:hover { color: #aab3cc; }
+    .archived-section { max-width: 720px; margin: 24px auto 0; }
+    .archived-section .section-label {
+      font-size: 0.75rem; color: #6a7494; text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 12px;
+    }
+    .archived-section .grid { margin: 0; opacity: 0.55; }
     .share-panel { display: none; margin-top: 12px; }
     .share-panel.open { display: block; }
     .share-row { margin-top: 8px; }
@@ -89,6 +105,13 @@
   </div>
   <div class="grid" id="grid">
     <p style="color:#aab3cc;font-size:0.9rem;grid-column:1/-1;">Loading…</p>
+  </div>
+  <div class="archived-toggle" id="archivedToggle" style="display:none;">
+    <button id="toggleArchived">Show archived</button>
+  </div>
+  <div class="archived-section" id="archivedSection" style="display:none;">
+    <div class="section-label">Archived</div>
+    <div class="grid" id="archivedGrid"></div>
   </div>
 
   <script src="/config.js"></script>
@@ -123,13 +146,27 @@
       const res = await fetch('/dashboard/worlds', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      // Only redirect on auth failure — other errors should surface in place.
       if (res.status === 401) { location.replace('/auth'); return; }
       if (!res.ok) {
         grid.innerHTML = '<p style="color:#ff9b9b;grid-column:1/-1;">Failed to load worlds. Please refresh the page.</p>';
         return;
       }
-      renderWorlds(await res.json());
+      const worlds = await res.json();
+      renderWorlds(worlds, grid, false);
+      document.getElementById('archivedToggle').style.display = 'block';
+    }
+
+    async function loadArchivedWorlds() {
+      const grid = document.getElementById('archivedGrid');
+      grid.innerHTML = '<p style="color:#aab3cc;font-size:0.9rem;grid-column:1/-1;">Loading…</p>';
+      const res = await fetch('/dashboard/worlds?archived=true', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        grid.innerHTML = '<p style="color:#ff9b9b;grid-column:1/-1;">Failed to load archived worlds.</p>';
+        return;
+      }
+      renderWorlds(await res.json(), grid, true);
     }
 
     function esc(s) {
@@ -138,14 +175,16 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function renderWorlds(worlds) {
-      const grid = document.getElementById('grid');
+    function renderWorlds(worlds, grid, archived) {
       grid.innerHTML = '';
       if (!worlds.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.style.gridColumn = '1 / -1';
-        empty.innerHTML = '<h2>No worlds yet</h2><p>Create your first birthday world to get started.</p>';
+        empty.style.margin = '20px auto';
+        empty.innerHTML = archived
+          ? '<p style="color:#6a7494;font-size:0.9rem;margin:0;">No archived worlds.</p>'
+          : '<h2>No worlds yet</h2><p>Create your first birthday world to get started.</p>';
         grid.appendChild(empty);
         return;
       }
@@ -160,6 +199,9 @@
         const n = w.chunk_count;
         const card = document.createElement('div');
         card.className = 'world-card';
+        const archiveActions = archived
+          ? `<button class="action-btn unarchive" data-unarchive="${esc(w.id)}" data-name="${esc(w.world_name)}">Unarchive</button>`
+          : `<button class="action-btn archive" data-archive="${esc(w.id)}" data-name="${esc(w.world_name)}">Archive</button>`;
         card.innerHTML = `
           <h2>${esc(w.world_name)}</h2>
           <p class="for">For ${esc(w.birthday_person)}${dateStr}</p>
@@ -169,7 +211,7 @@
             <a class="action-btn primary" href="/setup/${esc(w.id)}">Setup</a>
             <a class="action-btn ghost" href="/explore/${esc(w.id)}" target="_blank">Preview</a>
             <button class="action-btn share" data-world="${esc(w.id)}">Share links</button>
-            <button class="action-btn archive" data-archive="${esc(w.id)}" data-name="${esc(w.world_name)}">Archive</button>
+            ${archiveActions}
           </div>
           <div class="share-panel" id="share-${esc(w.id)}">
             <div class="share-row">
@@ -221,11 +263,45 @@
         });
         if (r.ok) {
           archiveBtn.closest('.world-card').remove();
-          if (!document.querySelector('.world-card')) loadWorlds();
+          if (!document.querySelector('#grid .world-card')) loadWorlds();
+          if (document.getElementById('archivedSection').style.display !== 'none') loadArchivedWorlds();
         } else {
           archiveBtn.textContent = 'Archive';
           archiveBtn.disabled = false;
         }
+        return;
+      }
+      const unarchiveBtn = e.target.closest('[data-unarchive]');
+      if (unarchiveBtn) {
+        const id = unarchiveBtn.dataset.unarchive;
+        unarchiveBtn.textContent = 'Restoring…';
+        unarchiveBtn.disabled = true;
+        const r = await fetch(`/worlds/${id}/unarchive`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (r.ok) {
+          unarchiveBtn.closest('.world-card').remove();
+          loadWorlds();
+        } else {
+          unarchiveBtn.textContent = 'Unarchive';
+          unarchiveBtn.disabled = false;
+        }
+      }
+    });
+
+    let archivedVisible = false;
+    document.getElementById('toggleArchived').addEventListener('click', async () => {
+      archivedVisible = !archivedVisible;
+      const section = document.getElementById('archivedSection');
+      const btn = document.getElementById('toggleArchived');
+      if (archivedVisible) {
+        section.style.display = 'block';
+        btn.textContent = 'Hide archived';
+        await loadArchivedWorlds();
+      } else {
+        section.style.display = 'none';
+        btn.textContent = 'Show archived';
       }
     });
 

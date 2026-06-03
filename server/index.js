@@ -276,8 +276,8 @@ app.post('/worlds/:id/chunks', async (req, res) => {
   }
 });
 
-// Archive a world (requires auth + ownership).
-app.patch('/worlds/:id/archive', requireAuth, async (req, res) => {
+// Archive / unarchive a world (requires auth + ownership).
+async function setArchived(req, res, value) {
   try {
     const { data: world, error: fetchErr } = await supabase
       .from('worlds')
@@ -290,24 +290,33 @@ app.patch('/worlds/:id/archive', requireAuth, async (req, res) => {
 
     const { error: updateErr } = await supabase
       .from('worlds')
-      .update({ archived: true })
+      .update({ archived: value })
       .eq('id', req.params.id);
     if (updateErr) throw updateErr;
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+
+app.patch('/worlds/:id/archive',   requireAuth, (req, res) => setArchived(req, res, true));
+app.patch('/worlds/:id/unarchive', requireAuth, (req, res) => setArchived(req, res, false));
 
 // Get all worlds owned by the current user (dashboard).
 app.get('/dashboard/worlds', requireAuth, async (req, res) => {
   try {
-    const { data: worlds, error } = await supabase
+    const showArchived = req.query.archived === 'true';
+    let query = supabase
       .from('worlds')
-      .select('id, birthday_person, birthday_date, created_at, world_name')
+      .select('id, birthday_person, birthday_date, created_at, world_name, archived')
       .eq('owner_id', req.user.id)
-      .or('archived.is.null,archived.eq.false')
       .order('created_at', { ascending: false });
+    if (showArchived) {
+      query = query.eq('archived', true);
+    } else {
+      query = query.or('archived.is.null,archived.eq.false');
+    }
+    const { data: worlds, error } = await query;
     if (error) throw error;
 
     const ids = (worlds || []).map((w) => w.id);
