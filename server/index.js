@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
 const { nanoid } = require('nanoid');
 
@@ -27,9 +28,21 @@ async function requireAuth(req, res, next) {
 }
 
 // ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+const chunkSubmitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many submissions from this IP, please try again later.' },
+});
+
+// ---------------------------------------------------------------------------
 // Enemy config presets
 // ---------------------------------------------------------------------------
 const THEMES = ['forest', 'beach', 'cave', 'snow', 'desert', 'magical'];
+const NPC_SPRITE_IDS = new Set(['guide', 'sage', 'ranger', 'mariner', 'scarlet', 'botanist', 'tinker', 'amber']);
 const ENEMY_TYPES = ['love_heart', 'hugger', 'confetti_bomber', 'birthday_cake'];
 
 const MOOD_PRESETS = {
@@ -162,7 +175,8 @@ app.post('/worlds', requireAuth, async (req, res) => {
     if (error) throw error;
     res.status(201).json({ id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -184,7 +198,8 @@ app.get('/worlds/:id', async (req, res) => {
     world.world_name = world.world_name || `${world.birthday_person}'s World`;
     res.json(world);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -216,7 +231,8 @@ app.put('/worlds/:id/setup', requireAuth, async (req, res) => {
     if (updateErr) throw updateErr;
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -234,12 +250,13 @@ app.get('/worlds/:id/chunks', async (req, res) => {
     if (error) throw error;
     res.json(chunks || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Submit a chunk (public — contributors don't need accounts).
-app.post('/worlds/:id/chunks', async (req, res) => {
+app.post('/worlds/:id/chunks', chunkSubmitLimiter, async (req, res) => {
   try {
     const { data: world } = await supabase
       .from('worlds').select('id').eq('id', req.params.id).maybeSingle();
@@ -250,10 +267,12 @@ app.post('/worlds/:id/chunks', async (req, res) => {
       return res.status(400).json({ error: `theme must be one of: ${THEMES.join(', ')}` });
     }
 
+    const safeSprite = NPC_SPRITE_IDS.has(sprite) ? sprite : 'guide';
+
     let lines = [];
     if (Array.isArray(dialogue_lines)) lines = dialogue_lines;
     else if (typeof dialogue_lines === 'string') lines = [dialogue_lines];
-    lines = lines.map((l) => String(l).trim()).filter((l) => l.length > 0).slice(0, 3);
+    lines = lines.map((l) => String(l).trim().slice(0, 200)).filter((l) => l.length > 0).slice(0, 3);
 
     const { x, y } = await nextCoord(req.params.id);
     const id = nanoid(10);
@@ -265,14 +284,15 @@ app.post('/worlds/:id/chunks', async (req, res) => {
       coord_y: y,
       theme,
       contributor_name: (contributor_name || '').toString().trim() || 'A friend',
-      sprite: (sprite || 'guide').toString(),
-      greeting: (greeting || '').toString().trim(),
+      sprite: safeSprite,
+      greeting: (greeting || '').toString().trim().slice(0, 300),
       dialogue_lines: lines,
     });
     if (error) throw error;
     res.status(201).json({ id, coord_x: x, coord_y: y });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -295,7 +315,8 @@ async function setArchived(req, res, value) {
     if (updateErr) throw updateErr;
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -337,7 +358,8 @@ app.get('/dashboard/worlds', requireAuth, async (req, res) => {
       chunk_count: countMap[w.id] || 0,
     })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

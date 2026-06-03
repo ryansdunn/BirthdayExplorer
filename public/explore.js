@@ -508,7 +508,7 @@ class WorldScene extends Phaser.Scene {
     this.discoverNpc(npc);
     this.dialogue = { npc, lines, index: 0, typing: false, body: this.dlg.body, typeEvent: null };
     this.dlg.name.setText(data.contributor_name || 'A friend');
-    this.dlg.role.setText(BW.characters.get(data.sprite).name);
+    this.dlg.role.setText(BW.characters.get(data.sprite)?.name ?? '');
     if (npc.texKey && this.textures.exists(npc.texKey)) this.dlg.av.setTexture(npc.texKey);
     this.buildPips(lines.length);
     this.dlg.container.setVisible(true);
