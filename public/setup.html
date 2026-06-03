@@ -385,7 +385,7 @@
         const base = location.origin;
         document.getElementById('contribUrl').value = `${base}/contribute/${worldId}`;
         document.getElementById('exploreUrl').value = `${base}/explore/${worldId}`;
-        document.getElementById('exploreNow').href = `/explore/${worldId}`;
+        document.getElementById('exploreNow').href = `/explore/${worldId}?preview=true`;
         form.style.display = 'none';
         document.getElementById('done').classList.add('show');
       } catch (err) {

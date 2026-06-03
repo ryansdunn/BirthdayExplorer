@@ -30,6 +30,8 @@ const DUST_COLORS = {
 };
 
 const worldId = location.pathname.split('/').pop();
+const PREVIEW_MODE = new URLSearchParams(location.search).has('preview');
+let _prefetch = null; // set by bootstrap() before Phaser starts
 
 class WorldScene extends Phaser.Scene {
   constructor() {
@@ -60,12 +62,16 @@ class WorldScene extends Phaser.Scene {
     this.keys = this.input.keyboard.addKeys({ w: 'W', a: 'A', s: 'S', d: 'D' });
 
     let world = null, chunks = [];
-    try {
-      [world, chunks] = await Promise.all([
-        fetch(`/worlds/${worldId}`).then((r) => (r.ok ? r.json() : null)),
-        fetch(`/worlds/${worldId}/chunks`).then((r) => (r.ok ? r.json() : [])),
-      ]);
-    } catch (e) { chunks = []; }
+    if (_prefetch) {
+      ({ world, chunks } = _prefetch);
+    } else {
+      try {
+        [world, chunks] = await Promise.all([
+          fetch(`/worlds/${worldId}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/worlds/${worldId}/chunks`).then((r) => (r.ok ? r.json() : [])),
+        ]);
+      } catch (e) { chunks = []; }
+    }
 
     this.world = world || {};
     this.chunks = chunks;
@@ -921,4 +927,107 @@ const config = {
   scene: [WorldScene],
 };
 
-new Phaser.Game(config);
+// ---------------------------------------------------------------------------
+// Birthday-gate helpers
+// ---------------------------------------------------------------------------
+
+function parseBirthdayLocal(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || !parts[0]) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0);
+}
+
+function isBeforeBirthday(dateStr) {
+  const bd = parseBirthdayLocal(dateStr);
+  return bd ? Date.now() < bd.getTime() : false;
+}
+
+function fillCountdownDom(world) {
+  const name = (world && world.birthday_person) || '';
+  const dateStr = world && world.birthday_date;
+  if (name) document.getElementById('cdName').textContent = name;
+  const bd = parseBirthdayLocal(dateStr);
+  if (bd) {
+    document.getElementById('cdDateLine').textContent =
+      `opens on ${bd.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  }
+  return bd;
+}
+
+function makeTicker(bd, autoReload) {
+  const els = {
+    days: document.getElementById('cdDays'),
+    hours: document.getElementById('cdHours'),
+    mins: document.getElementById('cdMins'),
+    secs: document.getElementById('cdSecs'),
+  };
+  function tick() {
+    const diff = bd ? bd.getTime() - Date.now() : 0;
+    if (diff <= 0 && autoReload) { location.reload(); return; }
+    const ms = Math.max(0, diff);
+    const pad = (n) => String(n).padStart(2, '0');
+    els.days.textContent  = pad(Math.floor(ms / 86400000));
+    els.hours.textContent = pad(Math.floor((ms % 86400000) / 3600000));
+    els.mins.textContent  = pad(Math.floor((ms % 3600000) / 60000));
+    els.secs.textContent  = pad(Math.floor((ms % 60000) / 1000));
+  }
+  tick();
+  return setInterval(tick, 1000);
+}
+
+function startCountdown(world) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('countdown').classList.add('show');
+  const bd = fillCountdownDom(world);
+  makeTicker(bd, true);
+}
+
+function startPreviewToggle(world) {
+  const badge = document.getElementById('previewBadge');
+  const btn   = document.getElementById('previewToggleBtn');
+  const cdEl  = document.getElementById('countdown');
+  badge.classList.add('show');
+
+  const bd = fillCountdownDom(world);
+  let tickerInterval = null;
+  let showingCountdown = false;
+
+  btn.addEventListener('click', () => {
+    showingCountdown = !showingCountdown;
+    if (showingCountdown) {
+      cdEl.classList.add('show');
+      btn.textContent = 'Switch to world view';
+      tickerInterval = makeTicker(bd, false);
+    } else {
+      cdEl.classList.remove('show');
+      btn.textContent = 'Switch to countdown view';
+      clearInterval(tickerInterval);
+      tickerInterval = null;
+    }
+  });
+}
+
+async function bootstrap() {
+  let world = null, chunks = [];
+  try {
+    [world, chunks] = await Promise.all([
+      fetch(`/worlds/${worldId}`).then((r) => (r.ok ? r.json() : null)),
+      fetch(`/worlds/${worldId}/chunks`).then((r) => (r.ok ? r.json() : [])),
+    ]);
+  } catch (e) { chunks = []; }
+
+  if (!PREVIEW_MODE && isBeforeBirthday(world && world.birthday_date)) {
+    startCountdown(world);
+    return;
+  }
+
+  _prefetch = { world, chunks };
+  new Phaser.Game(config);
+
+  if (PREVIEW_MODE && isBeforeBirthday(world && world.birthday_date)) {
+    startPreviewToggle(world);
+  }
+}
+
+bootstrap();

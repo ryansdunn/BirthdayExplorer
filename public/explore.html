@@ -17,6 +17,65 @@
       background: #10131f;
     }
 
+    /* ── Pre-birthday countdown screen ──────────────────────────────────── */
+    #countdown {
+      position: fixed; inset: 0; z-index: 50;
+      background: radial-gradient(circle at 50% 35%, #1a2a4a 0%, #10131f 65%);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--mono); color: #f0f2f8; text-align: center; padding: 24px;
+    }
+    #countdown.show { display: flex; }
+    #cdTitle {
+      font-size: clamp(0.8rem, 2.5vw, 1rem); color: #6a7494;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px;
+    }
+    #cdName {
+      font-size: clamp(1.6rem, 6vw, 2.6rem); font-weight: 700;
+      background: linear-gradient(90deg, #a78bff, #6d8cff, #a78bff);
+      background-size: 200% auto;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: hb-shimmer 3s linear infinite;
+      line-height: 1.2; margin-bottom: 10px;
+    }
+    #cdDateLine {
+      font-size: 0.8rem; color: #4a5470; margin-bottom: 52px;
+      letter-spacing: 0.06em;
+    }
+    #cdTimer {
+      display: flex; gap: clamp(8px, 3vw, 20px); align-items: flex-start;
+      justify-content: center;
+    }
+    .cd-unit { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .cd-num {
+      font-size: clamp(2.4rem, 9vw, 5rem); font-weight: 700;
+      line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      color: #eef3ff;
+    }
+    .cd-lbl {
+      font-size: clamp(0.55rem, 1.5vw, 0.65rem); color: #4a5470;
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .cd-sep {
+      font-size: clamp(1.8rem, 7vw, 3.8rem); font-weight: 300;
+      color: #2a3550; line-height: 1; padding-top: 4px;
+    }
+
+    /* ── Creator preview-mode badge ──────────────────────────────────────── */
+    #previewBadge {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 60; display: none;
+    }
+    #previewBadge.show { display: block; }
+    #previewToggleBtn {
+      background: rgba(10, 12, 24, 0.88);
+      border: 1px solid rgba(109, 140, 255, 0.45); color: #9fb0ff;
+      font-family: var(--mono); font-size: 0.72rem; padding: 6px 16px;
+      border-radius: 20px; cursor: pointer; white-space: nowrap;
+      backdrop-filter: blur(6px);
+    }
+    #previewToggleBtn:hover { border-color: #6d8cff; color: #fff; }
+
     /* ── Living portrait card (roster of people met) ─────────────────────── */
     #portrait {
       position: fixed; top: 16px; left: 16px; z-index: 20; display: none;
@@ -71,6 +130,27 @@
 <body>
   <div id="loading">Loading the world…</div>
   <div id="game"></div>
+
+  <!-- Pre-birthday countdown (shown when birthday_date is in the future) -->
+  <div id="countdown">
+    <div id="cdTitle">a birthday world is waiting</div>
+    <div id="cdName"></div>
+    <div id="cdDateLine"></div>
+    <div id="cdTimer">
+      <div class="cd-unit"><span class="cd-num" id="cdDays">00</span><span class="cd-lbl">days</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdHours">00</span><span class="cd-lbl">hours</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdMins">00</span><span class="cd-lbl">min</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdSecs">00</span><span class="cd-lbl">sec</span></div>
+    </div>
+  </div>
+
+  <!-- Creator preview toggle (shown only when ?preview=true) -->
+  <div id="previewBadge">
+    <button id="previewToggleBtn">Switch to countdown view</button>
+  </div>
 
   <div id="portrait" aria-label="Living portrait">
     <div id="pHappyBday">Happy Birthday</div>
