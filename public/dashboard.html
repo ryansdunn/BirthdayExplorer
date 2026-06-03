@@ -56,6 +56,8 @@
     .action-btn.primary { background: linear-gradient(135deg, #6d8cff, #9b6dff); color: #fff; }
     .action-btn.ghost { background: rgba(255, 255, 255, 0.1); color: #cdd6f0; border: 1px solid rgba(255, 255, 255, 0.15); }
     .action-btn.share { background: rgba(0, 0, 0, 0.3); color: #9fb0ff; border: 1px solid rgba(109, 140, 255, 0.3); }
+    .action-btn.archive { background: rgba(0, 0, 0, 0.2); color: #6a7494; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .action-btn.archive:hover { color: #ff9b9b; border-color: rgba(255, 100, 100, 0.3); }
     .share-panel { display: none; margin-top: 12px; }
     .share-panel.open { display: block; }
     .share-row { margin-top: 8px; }
@@ -167,6 +169,7 @@
             <a class="action-btn primary" href="/setup/${esc(w.id)}">Setup</a>
             <a class="action-btn ghost" href="/explore/${esc(w.id)}" target="_blank">Preview</a>
             <button class="action-btn share" data-world="${esc(w.id)}">Share links</button>
+            <button class="action-btn archive" data-archive="${esc(w.id)}" data-name="${esc(w.world_name)}">Archive</button>
           </div>
           <div class="share-panel" id="share-${esc(w.id)}">
             <div class="share-row">
@@ -203,6 +206,26 @@
         const orig = copyBtn.textContent;
         copyBtn.textContent = 'Copied!';
         setTimeout(() => (copyBtn.textContent = orig), 1500);
+        return;
+      }
+      const archiveBtn = e.target.closest('[data-archive]');
+      if (archiveBtn) {
+        const id = archiveBtn.dataset.archive;
+        const name = archiveBtn.dataset.name;
+        if (!confirm(`Archive "${name}"?\n\nThis will hide it from your dashboard. The world link will keep working.`)) return;
+        archiveBtn.textContent = 'Archiving…';
+        archiveBtn.disabled = true;
+        const r = await fetch(`/worlds/${id}/archive`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (r.ok) {
+          archiveBtn.closest('.world-card').remove();
+          if (!document.querySelector('.world-card')) loadWorlds();
+        } else {
+          archiveBtn.textContent = 'Archive';
+          archiveBtn.disabled = false;
+        }
       }
     });
 

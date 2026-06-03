@@ -276,6 +276,29 @@ app.post('/worlds/:id/chunks', async (req, res) => {
   }
 });
 
+// Archive a world (requires auth + ownership).
+app.patch('/worlds/:id/archive', requireAuth, async (req, res) => {
+  try {
+    const { data: world, error: fetchErr } = await supabase
+      .from('worlds')
+      .select('id, owner_id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!world) return res.status(404).json({ error: 'world not found' });
+    if (world.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+
+    const { error: updateErr } = await supabase
+      .from('worlds')
+      .update({ archived: true })
+      .eq('id', req.params.id);
+    if (updateErr) throw updateErr;
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get all worlds owned by the current user (dashboard).
 app.get('/dashboard/worlds', requireAuth, async (req, res) => {
   try {
@@ -283,6 +306,7 @@ app.get('/dashboard/worlds', requireAuth, async (req, res) => {
       .from('worlds')
       .select('id, birthday_person, birthday_date, created_at, world_name')
       .eq('owner_id', req.user.id)
+      .or('archived.is.null,archived.eq.false')
       .order('created_at', { ascending: false });
     if (error) throw error;
 

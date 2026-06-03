@@ -708,6 +708,8 @@ class WorldScene extends Phaser.Scene {
     if (this.gameOver) return;
     this.health = Math.min(MAX_HEALTH, this.health + amount);
     this.drawHearts();
+    this.tweens.killTweensOf(this.playerSprite);
+    this.playerSprite.setAlpha(1);
     this.tweens.add({ targets: this.playerSprite, alpha: 0.3, yoyo: true, duration: 120, repeat: 1 });
   }
 
