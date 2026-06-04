@@ -33,7 +33,13 @@
       border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(0, 0, 0, 0.25); color: #fff; font-size: 1rem;
     }
-    input:focus, select:focus { outline: 2px solid #6d8cff; border-color: transparent; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #6d8cff; border-color: transparent; }
+    textarea {
+      width: 100%; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.25); color: #fff; font-size: 0.95rem;
+      font-family: var(--mono); resize: vertical; min-height: 96px;
+    }
 
     /* generated pixel-art character options */
     .char-row { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -124,6 +130,17 @@
         <div class="char-row" id="charRow"></div>
         <label for="playerName">Name above their head</label>
         <input id="playerName" type="text" placeholder="e.g. Maya" maxlength="40" />
+      </div>
+
+      <div class="section">
+        <h2>Your note to them</h2>
+        <p class="hint">An intro screen they'll read before entering the world. Your character will greet them at spawn.</p>
+        <label>Pick your character</label>
+        <div class="char-row" id="orgCharRow"></div>
+        <label for="orgName">Your name</label>
+        <input id="orgName" type="text" placeholder="e.g. Alex" maxlength="40" />
+        <label for="orgNote">Your note</label>
+        <textarea id="orgNote" maxlength="500" placeholder="Write something heartfelt…"></textarea>
       </div>
 
       <div class="section">
@@ -243,6 +260,7 @@
 
     const PLAYER_DESIGNS = BW.characters.PLAYER_DESIGNS;
     let selectedDesign = PLAYER_DESIGNS[0].id;
+    let selectedOrgDesign = PLAYER_DESIGNS[0].id;
     let selectedShape = 'island';
 
     const shapeGrid = document.getElementById('shapeGrid');
@@ -278,6 +296,26 @@
       div.appendChild(label);
       div.addEventListener('click', () => selectDesign(d.id));
       charRow.appendChild(div);
+    });
+
+    const orgCharRow = document.getElementById('orgCharRow');
+    function selectOrgDesign(id) {
+      selectedOrgDesign = id;
+      orgCharRow.querySelectorAll('.char-opt').forEach((el) => el.classList.toggle('sel', el.dataset.id === id));
+    }
+    PLAYER_DESIGNS.forEach((d, i) => {
+      const div = document.createElement('div');
+      div.className = 'char-opt' + (i === 0 ? ' sel' : '');
+      div.dataset.id = d.id;
+      const canvas = document.createElement('canvas');
+      BW.characters.drawToCanvas(canvas, d, 3);
+      const label = document.createElement('span');
+      label.className = 'cn';
+      label.textContent = d.name;
+      div.appendChild(canvas);
+      div.appendChild(label);
+      div.addEventListener('click', () => selectOrgDesign(d.id));
+      orgCharRow.appendChild(div);
     });
 
     // Build enemy rows
@@ -333,6 +371,11 @@
         if (w.player_sprite && BW.characters.ALL[w.player_sprite]) {
           selectDesign(w.player_sprite);
         }
+        if (w.organizer_sprite && BW.characters.ALL[w.organizer_sprite]) {
+          selectOrgDesign(w.organizer_sprite);
+        }
+        document.getElementById('orgName').value = w.organizer_name || '';
+        document.getElementById('orgNote').value = w.organizer_note || '';
         applyConfig(w.enemy_config || PRESETS.adventure);
       })
       .catch(() => applyConfig(PRESETS.adventure));
@@ -376,6 +419,9 @@
             mood: moodSel.value,
             terrain_style: selectedShape,
             enemy_config,
+            organizer_sprite: selectedOrgDesign,
+            organizer_name: document.getElementById('orgName').value,
+            organizer_note: document.getElementById('orgNote').value,
           }),
         });
         if (!res.ok) {

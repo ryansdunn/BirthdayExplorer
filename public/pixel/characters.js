@@ -68,6 +68,10 @@ window.BW = window.BW || {};
     spec({ id: 'botanist', name: 'Botanist',  skin: 0xe0b48a, hair: 0x5a3a2a, hairStyle: 'bun',      top: 0x7aa84f, bottom: 0x4a5a2a, accent: 0xd6f0a0 }),
     spec({ id: 'tinker',   name: 'Tinker',    skin: 0xc89060, hair: 0x9a9aa0, hairStyle: 'spiky',    top: 0xb0843a, bottom: 0x5a4a2a, accent: 0xffd24d }),
     spec({ id: 'amber',    name: 'Amber',     skin: 0xf1c9a5, hair: 0xa64b2a, hairStyle: 'short',    top: 0xe89a3a, bottom: 0x6a4a20, accent: 0xffd9a0 }),
+    spec({ id: 'lumis',    name: 'Lumis',     skin: 0x8a5a3a, hair: 0x2a1a2a, hairStyle: 'bun',      top: 0x2a90a0, bottom: 0x1a4a54, accent: 0x80f0ff }),
+    spec({ id: 'crest',    name: 'Crest',     skin: 0xf1c9a5, hair: 0x2a7a8a, hairStyle: 'spiky',    top: 0xe85a3a, bottom: 0x5a2a1a, accent: 0xffc090 }),
+    spec({ id: 'petal',    name: 'Petal',     skin: 0xe0b48a, hair: 0xd87aaa, hairStyle: 'long',     top: 0x6ad0a0, bottom: 0x2a5a4a, accent: 0xd0ffe8 }),
+    spec({ id: 'stone',    name: 'Stone',     skin: 0xc89060, hair: 0x3a3a50, hairStyle: 'short',    top: 0x5a6890, bottom: 0x2a2a4a, accent: 0xa0aac8 }),
   ];
 
   const ALL = {};

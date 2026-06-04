@@ -42,7 +42,7 @@ const chunkSubmitLimiter = rateLimit({
 // Enemy config presets
 // ---------------------------------------------------------------------------
 const THEMES = ['forest', 'beach', 'cave', 'snow', 'desert', 'magical'];
-const NPC_SPRITE_IDS = new Set(['guide', 'sage', 'ranger', 'mariner', 'scarlet', 'botanist', 'tinker', 'amber']);
+const NPC_SPRITE_IDS = new Set(['guide', 'sage', 'ranger', 'mariner', 'scarlet', 'botanist', 'tinker', 'amber', 'lumis', 'crest', 'petal', 'stone']);
 const ENEMY_TYPES = ['love_heart', 'hugger', 'confetti_bomber', 'birthday_cake'];
 
 const MOOD_PRESETS = {
@@ -215,7 +215,7 @@ app.put('/worlds/:id/setup', requireAuth, async (req, res) => {
     if (!world) return res.status(404).json({ error: 'world not found' });
     if (world.owner_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
-    const { world_name, player_sprite, player_name, mood, enemy_config, terrain_style } = req.body || {};
+    const { world_name, player_sprite, player_name, mood, enemy_config, terrain_style, organizer_sprite, organizer_name, organizer_note } = req.body || {};
     const moodKey = MOOD_PRESETS[mood] ? mood : 'adventure';
     const terrainKey = terrain_style === 'archipelago' ? 'archipelago' : 'island';
     const config = normaliseEnemyConfig(enemy_config);
@@ -227,6 +227,9 @@ app.put('/worlds/:id/setup', requireAuth, async (req, res) => {
       mood: moodKey,
       enemy_config: config,
       terrain_style: terrainKey,
+      organizer_sprite: organizer_sprite ? organizer_sprite.toString() : null,
+      organizer_name: (organizer_name || '').toString().trim().slice(0, 40) || null,
+      organizer_note: (organizer_note || '').toString().trim().slice(0, 500) || null,
     }).eq('id', req.params.id);
     if (updateErr) throw updateErr;
     res.json({ ok: true });
@@ -255,6 +258,21 @@ app.get('/worlds/:id/chunks', async (req, res) => {
   }
 });
 
+// Sprite usage for a world — returns array of sprite IDs already claimed (public).
+app.get('/worlds/:id/sprite-usage', async (req, res) => {
+  try {
+    const { data: chunks, error } = await supabase
+      .from('chunks')
+      .select('sprite')
+      .eq('world_id', req.params.id);
+    if (error) throw error;
+    res.json((chunks || []).map((c) => c.sprite).filter(Boolean));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Submit a chunk (public — contributors don't need accounts).
 app.post('/worlds/:id/chunks', chunkSubmitLimiter, async (req, res) => {
   try {
@@ -262,7 +280,7 @@ app.post('/worlds/:id/chunks', chunkSubmitLimiter, async (req, res) => {
       .from('worlds').select('id').eq('id', req.params.id).maybeSingle();
     if (!world) return res.status(404).json({ error: 'world not found' });
 
-    const { theme, contributor_name, sprite, greeting, dialogue_lines } = req.body || {};
+    const { theme, contributor_name, sprite, dialogue_lines } = req.body || {};
     if (!THEMES.includes(theme)) {
       return res.status(400).json({ error: `theme must be one of: ${THEMES.join(', ')}` });
     }
@@ -285,7 +303,6 @@ app.post('/worlds/:id/chunks', chunkSubmitLimiter, async (req, res) => {
       theme,
       contributor_name: (contributor_name || '').toString().trim() || 'A friend',
       sprite: safeSprite,
-      greeting: (greeting || '').toString().trim().slice(0, 300),
       dialogue_lines: lines,
     });
     if (error) throw error;

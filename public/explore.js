@@ -37,6 +37,7 @@ class WorldScene extends Phaser.Scene {
   constructor() {
     super('world');
     this.npcs = [];
+    this.organizerNpc = null;
     this.chunkState = new Map();
     this.enemies = []; // all roaming enemies, visible/active everywhere
     this.projectiles = []; // confetti from bombers
@@ -138,6 +139,8 @@ class WorldScene extends Phaser.Scene {
     this.buildOverlays(world);
     this.setupWeapon();
     this.setupCameras();
+    // Organizer spawns after initPortrait so they aren't counted in the contributor total.
+    this.spawnOrganizerNpc(world);
 
     this.input.keyboard.on('keydown-E', () => this.onInteract());
     this.input.keyboard.on('keydown-SPACE', () => { if (!this.gameOver) this.onInteract(); });
@@ -158,6 +161,10 @@ class WorldScene extends Phaser.Scene {
 
     this.startTime = this.time.now;
     this.markVisited(0, 0);
+
+    if (this.organizerNpc) {
+      this.time.delayedCall(800, () => { if (!this.dialogue) this.popThenTalk(this.organizerNpc); });
+    }
   }
 
   makeSparkTexture() {
@@ -181,19 +188,11 @@ class WorldScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '12px', color: '#eef3ff',
       backgroundColor: 'rgba(16,22,30,0.82)', padding: { x: 7, y: 3 },
     }).setOrigin(0.5, 1);
-    let greetingText = null;
-    if (c.greeting) {
-      greetingText = this.add.text(0, -62, c.greeting, {
-        fontFamily: FONT, fontSize: '11px', color: '#fff8d0',
-        backgroundColor: 'rgba(40,30,10,0.78)', padding: { x: 6, y: 4 },
-        wordWrap: { width: 160 }, align: 'center',
-      }).setOrigin(0.5, 1).setVisible(false);
-    }
-    container.add(greetingText ? [sprite, nameplate, greetingText] : [sprite, nameplate]);
+    container.add([sprite, nameplate]);
     this.addWorld(container);
 
     this.npcs.push({
-      data: c, x: px, y: py, container, sprite, greetingText, texKey: key,
+      data: c, x: px, y: py, container, sprite, texKey: key,
       baseY: py, bob: Math.random() * Math.PI * 2, nextFace: 0, visited: false,
     });
   }
@@ -201,6 +200,7 @@ class WorldScene extends Phaser.Scene {
   // ---- player --------------------------------------------------------------
   buildPlayer() {
     const sp = this.terrain.spawnPoint();
+    this.spawnPt = sp;
     this.player = this.add.container(sp.x, sp.y).setDepth(20);
     this.playerSprite = this.add.sprite(0, 0, 'player_down_0').setOrigin(0.5, 1);
     this.playerSprite.play('player_idle_down');
@@ -216,6 +216,39 @@ class WorldScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '11px', color: '#10131f',
       backgroundColor: '#ffe27a', padding: { x: 6, y: 3 },
     }).setOrigin(0.5, 1).setDepth(30).setVisible(false));
+  }
+
+  spawnOrganizerNpc(world) {
+    if (!world || !world.organizer_note) return;
+    const sp = this.spawnPt;
+    const ox = sp.x + 48, oy = sp.y;
+    const spriteId = world.organizer_sprite || 'wanderer';
+    const key = BW.sprites.npcTextureFor(this, spriteId);
+    const container = this.add.container(ox, oy).setDepth(17);
+    const sprite = this.add.sprite(0, 0, key).setOrigin(0.5, 1);
+    const nameText = world.organizer_name || 'Organizer';
+    const nameplate = this.add.text(0, -44, nameText, {
+      fontFamily: FONT, fontSize: '12px', color: '#eef3ff',
+      backgroundColor: 'rgba(16,22,30,0.82)', padding: { x: 7, y: 3 },
+    }).setOrigin(0.5, 1);
+    container.add([sprite, nameplate]);
+    this.addWorld(container);
+    const bdName = world.birthday_person || 'Explorer';
+    this.organizerNpc = {
+      data: {
+        contributor_name: nameText,
+        sprite: spriteId,
+        dialogue_lines: [
+          `Happy Birthday, ${bdName}!`,
+          'Welcome to your birthday world! Click to throw paper airplanes to protect yourself from the overwhelming love we are sending you.',
+          'Use arrow keys or WASD to explore. Your friends are scattered across the island — walk up to them and press SPACE to hear their messages.',
+        ],
+      },
+      x: ox, y: oy, container, sprite, texKey: key,
+      baseY: oy, bob: Math.PI, nextFace: 0, visited: false,
+      isOrganizer: true,
+    };
+    this.npcs.push(this.organizerNpc);
   }
 
   updatePlayerAnim(moving) {
@@ -349,10 +382,7 @@ class WorldScene extends Phaser.Scene {
     row.appendChild(canvas);
     row.appendChild(meta);
 
-    const msgs = [];
-    if (data.greeting) msgs.push(data.greeting);
-    (data.dialogue_lines || []).forEach((l) => msgs.push(l));
-    const message = msgs.join('\n') || '…';
+    const message = (data.dialogue_lines || []).join('\n') || '…';
 
     if (p.tip) {
       const show = () => {
@@ -508,10 +538,9 @@ class WorldScene extends Phaser.Scene {
 
   startDialogue(npc) {
     const data = npc.data;
-    let lines = Array.isArray(data.dialogue_lines) ? data.dialogue_lines.slice() : [];
-    if (lines.length === 0) lines = [data.greeting || '…'];
+    let lines = Array.isArray(data.dialogue_lines) && data.dialogue_lines.length > 0 ? data.dialogue_lines.slice() : ['…'];
     npc.visited = true;
-    this.discoverNpc(npc);
+    if (!npc.isOrganizer) this.discoverNpc(npc);
     this.dialogue = { npc, lines, index: 0, typing: false, body: this.dlg.body, typeEvent: null };
     this.dlg.name.setText(data.contributor_name || 'A friend');
     this.dlg.role.setText(BW.characters.get(data.sprite)?.name ?? '');
@@ -519,7 +548,6 @@ class WorldScene extends Phaser.Scene {
     this.buildPips(lines.length);
     this.dlg.container.setVisible(true);
     this.talkHint.setVisible(false);
-    if (npc.greetingText) npc.greetingText.setVisible(false);
     this.typeLine(0);
   }
 
@@ -870,11 +898,10 @@ class WorldScene extends Phaser.Scene {
       if (now > n.nextFace) { n.nextFace = now + 1800 + Math.random() * 2600; n.sprite.setFlipX(Math.random() < 0.5); }
     });
 
-    // proximity hint + greeting + talk button
+    // proximity hint + talk button
     const near = this.nearestNpcInRange();
-    this.npcs.forEach((n) => { if (n.greetingText) n.greetingText.setVisible(n === near); });
     if (near && !this.dialogue) {
-      this.talkHint.setPosition(near.x, near.container.y - (near.greetingText ? 66 : 48));
+      this.talkHint.setPosition(near.x, near.container.y - 48);
       this.talkHint.setVisible(true);
     } else this.talkHint.setVisible(false);
     if (this.talkBtn && this.sys.game.device.input.touch) {
@@ -1008,6 +1035,26 @@ function startPreviewToggle(world) {
   });
 }
 
+function showIntro(world) {
+  return new Promise((resolve) => {
+    document.getElementById('loading').style.display = 'none';
+    const el = document.getElementById('intro');
+    el.classList.add('show');
+    const canvas = document.getElementById('introChar');
+    const design = BW.characters.get(world.organizer_sprite || 'wanderer');
+    BW.characters.drawToCanvas(canvas, design, 4);
+    const nameEl = document.getElementById('introName');
+    nameEl.textContent = world.organizer_name || '';
+    nameEl.style.display = world.organizer_name ? '' : 'none';
+    const noteEl = document.getElementById('introNote');
+    noteEl.textContent = world.organizer_note || '';
+    document.getElementById('introPlayBtn').addEventListener('click', () => {
+      el.classList.remove('show');
+      resolve();
+    }, { once: true });
+  });
+}
+
 async function bootstrap() {
   let world = null, chunks = [];
   try {
@@ -1020,6 +1067,10 @@ async function bootstrap() {
   if (!PREVIEW_MODE && isBeforeBirthday(world && world.birthday_date)) {
     startCountdown(world);
     return;
+  }
+
+  if (world && world.organizer_note) {
+    await showIntro(world);
   }
 
   _prefetch = { world, chunks };

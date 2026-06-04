@@ -50,6 +50,8 @@
     .char-opt .cn { font-size: 0.62rem; color: #aab3cc; }
     .char-opt.sel { border-color: #6d8cff; background: rgba(109, 140, 255, 0.25); }
     .char-opt.sel .cn { color: #fff; }
+    .char-opt.locked { opacity: 0.35; cursor: not-allowed; }
+    .char-opt.locked .cn::after { content: ' ✓'; color: #6d8cff; }
 
     .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .theme-opt {
@@ -112,12 +114,9 @@
       <label>Pick a zone theme</label>
       <div class="theme-grid" id="themeGrid"></div>
 
-      <label for="greeting">Greeting line (shown when they get close)</label>
-      <input id="greeting" type="text" placeholder="Hey, I've been looking for you…" maxlength="80" />
-
-      <label>Main message (talk to them — up to 3 lines)</label>
+      <label>Your message (up to 3 lines)</label>
       <div id="linesWrap">
-        <input class="line-input" type="text" placeholder="Your message…" maxlength="120" />
+        <input class="line-input" type="text" placeholder="Your message…" maxlength="200" />
       </div>
       <button type="button" id="addLine">+ add another line</button>
 
@@ -148,11 +147,12 @@
     let selectedDesign = NPC_DESIGNS[0].id;
     let selectedTheme = THEMES[0].id;
 
-    // Build generated pixel-art character options
+    // Build generated pixel-art character options (locking applied after usage loads)
     const charRow = document.getElementById('charRow');
-    NPC_DESIGNS.forEach((d, i) => {
+    const charOptEls = {};
+    NPC_DESIGNS.forEach((d) => {
       const div = document.createElement('div');
-      div.className = 'char-opt' + (i === 0 ? ' sel' : '');
+      div.className = 'char-opt';
       div.dataset.id = d.id;
       const canvas = document.createElement('canvas');
       BW.characters.drawToCanvas(canvas, d, 3);
@@ -162,11 +162,37 @@
       div.appendChild(canvas);
       div.appendChild(label);
       div.addEventListener('click', () => {
+        if (div.classList.contains('locked')) return;
         selectedDesign = d.id;
         charRow.querySelectorAll('.char-opt').forEach((el) => el.classList.toggle('sel', el === div));
       });
       charRow.appendChild(div);
+      charOptEls[d.id] = div;
     });
+
+    function applySpriteLocking(usedSprites) {
+      // Count how many times each sprite appears in this world's chunks.
+      const counts = {};
+      NPC_DESIGNS.forEach((d) => { counts[d.id] = 0; });
+      usedSprites.forEach((id) => { if (counts[id] !== undefined) counts[id]++; });
+
+      // A sprite is locked for the current round if its count exceeds the minimum
+      // across all sprites. When everyone has been used once the minimum rises and
+      // all sprites unlock together for the next round.
+      const minCount = Math.min(...Object.values(counts));
+      NPC_DESIGNS.forEach((d) => {
+        const locked = counts[d.id] > minCount;
+        charOptEls[d.id].classList.toggle('locked', locked);
+      });
+
+      // Auto-select the first available sprite.
+      const firstAvail = NPC_DESIGNS.find((d) => counts[d.id] <= minCount);
+      if (firstAvail) {
+        selectedDesign = firstAvail.id;
+        charRow.querySelectorAll('.char-opt').forEach((el) =>
+          el.classList.toggle('sel', el.dataset.id === firstAvail.id));
+      }
+    }
 
     // Build theme grid
     const themeGrid = document.getElementById('themeGrid');
@@ -195,20 +221,21 @@
       inp.className = 'line-input';
       inp.type = 'text';
       inp.placeholder = 'Another line…';
-      inp.maxLength = 120;
+      inp.maxLength = 200;
       linesWrap.appendChild(inp);
       refreshAddBtn();
     });
 
-    // Load world name for a friendlier header
-    fetch(`/worlds/${worldId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((w) => {
-        if (w && w.birthday_person) {
-          document.getElementById('personName').textContent = `${w.birthday_person}'s world`;
-        }
-      })
-      .catch(() => {});
+    // Load world name + sprite usage in parallel.
+    Promise.all([
+      fetch(`/worlds/${worldId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`/worlds/${worldId}/sprite-usage`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([w, usage]) => {
+      if (w && w.birthday_person) {
+        document.getElementById('personName').textContent = `${w.birthday_person}'s world`;
+      }
+      applySpriteLocking(usage);
+    });
 
     const form = document.getElementById('form');
     const submitBtn = document.getElementById('submit');
@@ -231,7 +258,6 @@
             sprite: selectedDesign,
             theme: selectedTheme,
             contributor_name: document.getElementById('charName').value,
-            greeting: document.getElementById('greeting').value,
             dialogue_lines: lines,
           }),
         });

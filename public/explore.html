@@ -61,6 +61,39 @@
       color: #2a3550; line-height: 1; padding-top: 4px;
     }
 
+    /* ── Organizer intro screen ──────────────────────────────────────────── */
+    #intro {
+      position: fixed; inset: 0; z-index: 48;
+      background: radial-gradient(circle at 50% 35%, #1a2a4a 0%, #10131f 65%);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--mono); color: #f0f2f8; text-align: center;
+      padding: 24px; gap: 16px;
+    }
+    #intro.show { display: flex; }
+    #introFrom { font-size: 0.75rem; color: #6a7494; text-transform: uppercase; letter-spacing: 0.1em; }
+    #introChar { image-rendering: pixelated; image-rendering: crisp-edges; width: 72px; height: auto; }
+    #introName {
+      font-size: 1.3rem; font-weight: 700;
+      background: linear-gradient(90deg, #a78bff, #6d8cff, #a78bff);
+      background-size: 200% auto;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: hb-shimmer 3s linear infinite;
+    }
+    #introNote {
+      max-width: 460px; font-size: 0.93rem; line-height: 1.7; color: #c5cce0;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px; padding: 16px 20px; text-align: left; white-space: pre-wrap;
+    }
+    #introPlayBtn {
+      margin-top: 6px; padding: 13px 48px;
+      background: linear-gradient(135deg, #6d8cff, #9b6dff);
+      border: none; border-radius: 12px; color: #fff;
+      font-family: var(--mono); font-size: 1rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.04em;
+    }
+    #introPlayBtn:hover { filter: brightness(1.12); }
+
     /* ── Creator preview-mode badge ──────────────────────────────────────── */
     #previewBadge {
       position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
@@ -145,6 +178,15 @@
       <div class="cd-sep">:</div>
       <div class="cd-unit"><span class="cd-num" id="cdSecs">00</span><span class="cd-lbl">sec</span></div>
     </div>
+  </div>
+
+  <!-- Organizer intro screen (shown before game starts if organizer wrote a note) -->
+  <div id="intro">
+    <div id="introFrom">a message from</div>
+    <canvas id="introChar"></canvas>
+    <div id="introName"></div>
+    <div id="introNote"></div>
+    <button id="introPlayBtn">Play</button>
   </div>
 
   <!-- Creator preview toggle (shown only when ?preview=true) -->
