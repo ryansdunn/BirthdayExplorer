@@ -57,6 +57,10 @@ window.BW = window.BW || {};
     spec({ id: 'frost',    name: 'Frost',    skin: 0xf6d9bd, hair: 0x9abfd0, hairStyle: 'cap',   top: 0xbfe9ff, bottom: 0x3a6a8a, accent: 0xffffff }),
     spec({ id: 'dusk',     name: 'Dusk',     skin: 0x8a5a3a, hair: 0x1a1414, hairStyle: 'bun',   top: 0x9b6dff, bottom: 0x3a2a5a, accent: 0xe6c9ff }),
     spec({ id: 'sandy',    name: 'Sandy',    skin: 0xe0b48a, hair: 0xd8b86a, hairStyle: 'short', top: 0xf2d06a, bottom: 0x8a6a3a, accent: 0xfff4c0 }),
+    spec({ id: 'lumis',    name: 'Lumis',    skin: 0x8a5a3a, hair: 0x2a1a2a, hairStyle: 'bun',   top: 0x2a90a0, bottom: 0x1a4a54, accent: 0x80f0ff }),
+    spec({ id: 'crest',    name: 'Crest',    skin: 0xf1c9a5, hair: 0x2a7a8a, hairStyle: 'spiky', top: 0xe85a3a, bottom: 0x5a2a1a, accent: 0xffc090 }),
+    spec({ id: 'petal',    name: 'Petal',    skin: 0xe0b48a, hair: 0xd87aaa, hairStyle: 'long',  top: 0x6ad0a0, bottom: 0x2a5a4a, accent: 0xd0ffe8 }),
+    spec({ id: 'stone',    name: 'Stone',    skin: 0xc89060, hair: 0x3a3a50, hairStyle: 'short', top: 0x5a6890, bottom: 0x2a2a4a, accent: 0xa0aac8 }),
   ];
 
   const NPC_DESIGNS = [
