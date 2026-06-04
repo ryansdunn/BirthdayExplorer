@@ -285,6 +285,77 @@ window.BW = window.BW || {};
     // Animated water overlays: only coast-adjacent water tiles.
     const waterImages = []; // {img, theme}
 
+    // ── COASTAL FRINGE: 1-tile beach strip + animated tide foam just outside
+    //    the island's outer perimeter, sitting on top of the open-ocean apron
+    //    (depth -2). Beach tiles at depth -1; foam overlay at depth -0.5. ──
+    const coastalFringeImages = []; // {img, phase}
+    if (occupied.length && style === 'island') {
+      const BIOMES_PAL = (BW.palettes && BW.palettes.biome) || {};
+
+      occupied.forEach((o) => {
+        const cx = o.cx, cy = o.cy;
+        const theme = chunkTheme(cx, cy);
+        const pal = BIOMES_PAL[theme] || BIOMES_PAL.hub;
+
+        const dirs = [
+          { nx: cx - 1, ny: cy, faceI: 0,               faceJ: null,            outDx: -1, outDy:  0 },
+          { nx: cx + 1, ny: cy, faceI: CHUNK_TILES - 1,  faceJ: null,            outDx:  1, outDy:  0 },
+          { nx: cx, ny: cy - 1, faceI: null,             faceJ: 0,               outDx:  0, outDy: -1 },
+          { nx: cx, ny: cy + 1, faceI: null,             faceJ: CHUNK_TILES - 1, outDx:  0, outDy:  1 },
+        ];
+
+        dirs.forEach(({ nx, ny, faceI, faceJ, outDx, outDy }) => {
+          if (occSet.has(key(nx, ny))) return; // neighbor chunk occupied — no fringe
+          for (let k = 0; k < CHUNK_TILES; k++) {
+            const gx = cx * CHUNK_TILES + (faceI !== null ? faceI : k);
+            const gy = cy * CHUNK_TILES + (faceJ !== null ? faceJ : k);
+
+            // Only fringe where the edge tile is water or beach — skip land/cliff
+            // edges (e.g. corridors exiting the chunk) so fringe doesn't appear
+            // around paths or bridges.
+            const edgeCell = getTile(gx, gy);
+            if (!edgeCell || (edgeCell.s !== S_WATER && edgeCell.s !== S_BEACH)) continue;
+
+            // Smooth noise drives beach width (0–3 tiles) so the shoreline
+            // undulates naturally instead of forming a uniform rectangular strip.
+            const n = noise.fbm(gx, gy, { octaves: 3, persistence: 0.5, lacunarity: 2, frequency: 0.18 });
+            let beachWidth;
+            if (n < 0.12)      beachWidth = 0; // bare water edge — no fringe
+            else if (n < 0.55) beachWidth = 1;
+            else if (n < 0.82) beachWidth = 2;
+            else               beachWidth = 3;
+
+            for (let d = 1; d <= beachWidth; d++) {
+              const extGx = gx + outDx * d;
+              const extGy = gy + outDy * d;
+              // Register in grid so isWalkable() finds these tiles at runtime.
+              if (!getTile(extGx, extGy)) setTile(extGx, extGy, S_BEACH, theme);
+              const v = variant(extGx, extGy, 2);
+              const bkey = tk('beach', theme, v);
+              if (bkey && scene.textures.exists(bkey)) {
+                scene.add.image(extGx * TILE, extGy * TILE, bkey).setOrigin(0, 0).setDepth(-1);
+              } else if (pal) {
+                const gb = scene.add.graphics().setDepth(-1);
+                gb.fillStyle(pal.beach[v % pal.beach.length], 1).fillRect(extGx * TILE, extGy * TILE, TILE, TILE);
+              }
+            }
+
+            // Tide wash on the outermost beach tile: a solid pale-blue Rectangle
+            // animated via setAlpha() — avoids texture-transparency issues.
+            if (beachWidth > 0) {
+              const extGx = gx + outDx * beachWidth;
+              const extGy = gy + outDy * beachWidth;
+              const rect = scene.add.rectangle(
+                extGx * TILE + TILE / 2, extGy * TILE + TILE / 2, TILE, TILE
+              ).setFillStyle(0xcce8ff, 1).setDepth(-0.5).setAlpha(0);
+              const phase = ((extGx * 3 + extGy * 7) % 16) / 16;
+              coastalFringeImages.push({ img: rect, phase });
+            }
+          }
+        });
+      });
+    }
+
     occupied.forEach((o) => {
       const rt = scene.add.renderTexture(o.cx * CHUNK_PX, o.cy * CHUNK_PX, CHUNK_PX, CHUNK_PX).setDepth(0);
       rt.setOrigin(0, 0);
@@ -511,19 +582,32 @@ window.BW = window.BW || {};
       return hub;
     }
 
-    // ── ANIMATED WATER: cycle frames in update(). ──
+    // ── ANIMATED WATER + TIDE: cycle water frames and advance tide phase. ──
     let waterFrame = 0;
     let waterAccum = 0;
-    const WATER_MS = 420; // per-frame
+    const WATER_MS = 420; // ms per water frame
+    let tidePhase = 0;    // 0..1, continuously advances
     function update(time, delta) {
-      waterAccum += (delta || 16.6);
-      if (waterAccum < WATER_MS) return;
-      waterAccum = 0;
-      waterFrame = (waterFrame + 1) % WATER_FRAMES;
-      for (let i = 0; i < waterImages.length; i++) {
-        const w = waterImages[i];
-        const k = TK ? TK.water(w.theme, waterFrame) : null;
-        if (k && scene.textures.exists(k)) w.img.setTexture(k);
+      const dt = delta || 16.6;
+      waterAccum += dt;
+      if (waterAccum >= WATER_MS) {
+        waterAccum = 0;
+        waterFrame = (waterFrame + 1) % WATER_FRAMES;
+        for (let i = 0; i < waterImages.length; i++) {
+          const w = waterImages[i];
+          const k = TK ? TK.water(w.theme, waterFrame) : null;
+          if (k && scene.textures.exists(k)) w.img.setTexture(k);
+        }
+      }
+      // Tide foam: each fringe tile gets a sine-wave alpha pulse; phase offset
+      // staggers neighbours so the wave appears to sweep along the shore (~3.2 s cycle).
+      if (coastalFringeImages.length) {
+        tidePhase = (tidePhase + dt / 3200) % 1;
+        for (let i = 0; i < coastalFringeImages.length; i++) {
+          const t = coastalFringeImages[i];
+          const ph = (tidePhase + t.phase) % 1;
+          t.img.setAlpha(Math.max(0, Math.sin(ph * Math.PI)) * 0.62);
+        }
       }
     }
 
