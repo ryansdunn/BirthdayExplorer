@@ -57,6 +57,10 @@ class WorldScene extends Phaser.Scene {
   addWorld(o) { this.worldLayer.add(o); return o; }
   addHud(o) { this.uiLayer.add(o); return o; }
 
+  preload() {
+    this.load.audio('bgm', 'audio/bgm.mp3');
+  }
+
   async create() {
     this.makeSparkTexture();
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -165,6 +169,11 @@ class WorldScene extends Phaser.Scene {
     if (this.organizerNpc) {
       this.time.delayedCall(800, () => { if (!this.dialogue) this.popThenTalk(this.organizerNpc); });
     }
+
+    // Background music — loop at low volume, fade in so it doesn't jar on load.
+    this.music = this.sound.add('bgm', { loop: true, volume: 0 });
+    this.music.play();
+    this.tweens.add({ targets: this.music, volume: 0.35, duration: 2000 });
   }
 
   makeSparkTexture() {
