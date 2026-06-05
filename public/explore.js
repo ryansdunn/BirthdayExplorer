@@ -52,13 +52,16 @@ class WorldScene extends Phaser.Scene {
     this.activeKey = null;
     this.visited = new Set();
     this.hud = [];
+    this.paused = false;
+    this.musicMuted = false;
+    this.pauseMenu = null;
   }
 
   addWorld(o) { this.worldLayer.add(o); return o; }
   addHud(o) { this.uiLayer.add(o); return o; }
 
   preload() {
-    this.load.audio('bgm', 'audio/bgm.mp3');
+    this.load.audio('bgm', '/audio/bgm.mp3');
   }
 
   async create() {
@@ -149,6 +152,7 @@ class WorldScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-E', () => this.onInteract());
     this.input.keyboard.on('keydown-SPACE', () => { if (!this.gameOver) this.onInteract(); });
     this.input.keyboard.on('keydown-F', () => { if (!this.dialogue && !this.gameOver) this.weapon.throw(); });
+    this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
     // Mouse aim: click anywhere to throw a paper airplane toward that point.
     // (Touch devices use the on-screen throw button + joystick instead.)
@@ -794,6 +798,52 @@ class WorldScene extends Phaser.Scene {
     this.activeKey = null;
   }
 
+  // ---- pause menu ----------------------------------------------------------
+  togglePause() {
+    if (this.gameOver) return;
+    if (this.paused) {
+      this.paused = false;
+      if (this.pauseMenu) { this.pauseMenu.destroy(); this.pauseMenu = null; }
+    } else {
+      this.paused = true;
+      this.showPauseMenu();
+    }
+  }
+
+  showPauseMenu() {
+    const cam = this.cameras.main;
+    const cx = cam.width / 2, cy = cam.height / 2;
+    const c = this.addHud(this.add.container(0, 0).setScrollFactor(0).setDepth(400));
+    this.pauseMenu = c;
+
+    const bg = this.add.rectangle(0, 0, cam.width, cam.height, 0x0a0d1a, 0.78).setOrigin(0, 0);
+    const panel = this.add.rectangle(cx, cy, 260, 200, 0x161b2e, 1).setStrokeStyle(1, 0x3a4566, 1);
+    const title = this.add.text(cx, cy - 72, 'PAUSED', { fontFamily: FONT, fontSize: '20px', color: '#a78bff', fontStyle: 'bold' }).setOrigin(0.5);
+
+    // Volume toggle button
+    const volBtn = this.add.rectangle(cx, cy - 20, 200, 42, 0x1e2540).setStrokeStyle(1, 0x3a4566, 1).setInteractive({ useHandCursor: true });
+    const volLabel = () => this.musicMuted ? '♪  Music: Off' : '♪  Music: On';
+    const volT = this.add.text(cx, cy - 20, volLabel(), { fontFamily: FONT, fontSize: '14px', color: '#cdd6f0' }).setOrigin(0.5);
+    volBtn.on('pointerover', () => volBtn.setFillStyle(0x2a3460));
+    volBtn.on('pointerout', () => volBtn.setFillStyle(0x1e2540));
+    volBtn.on('pointerdown', () => {
+      this.musicMuted = !this.musicMuted;
+      if (this.music) this.music.setMute(this.musicMuted);
+      volT.setText(volLabel());
+    });
+
+    // Resume button
+    const resBtn = this.add.rectangle(cx, cy + 40, 200, 42, 0x4a5aff).setStrokeStyle(1, 0x7a8aff, 0.6).setInteractive({ useHandCursor: true });
+    const resT = this.add.text(cx, cy + 40, 'Resume', { fontFamily: FONT, fontSize: '15px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    resBtn.on('pointerover', () => resBtn.setFillStyle(0x5a6aff));
+    resBtn.on('pointerout', () => resBtn.setFillStyle(0x4a5aff));
+    resBtn.on('pointerdown', () => this.togglePause());
+
+    const hint = this.add.text(cx, cy + 84, 'ESC to resume', { fontFamily: FONT, fontSize: '11px', color: '#3a4566' }).setOrigin(0.5);
+
+    c.add([bg, panel, title, volBtn, volT, resBtn, resT, hint]);
+  }
+
   // ---- touch controls ------------------------------------------------------
   setupTouchControls() {
     const cam = this.cameras.main;
@@ -845,6 +895,7 @@ class WorldScene extends Phaser.Scene {
   // ---- main loop -----------------------------------------------------------
   update(time, delta) {
     if (!this.player || !this.terrain) return;
+    if (this.paused) return;
     const dt = delta / 1000, now = this.time.now;
     this.terrain.update(time, delta);
 
