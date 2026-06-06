@@ -781,7 +781,9 @@ class WorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const c = this.addHud(this.add.container(0, 0).setScrollFactor(0).setDepth(300));
     const bg = this.add.rectangle(0, 0, cam.width, cam.height, 0x10131f, 0.85).setOrigin(0, 0);
-    const t1 = this.add.text(cam.width / 2, cam.height / 2 - 50, 'You were loved too hard.', { fontFamily: FONT, fontSize: '24px', color: '#ff9ecb', fontStyle: 'bold' }).setOrigin(0.5);
+    const deathMessages = ['Too many hugs. Fatal.', 'Love reached critical levels.', 'You received one hug too many.', 'Eliminated by overwhelming affection.'];
+    const deathMsg = deathMessages[Math.floor(Math.random() * deathMessages.length)];
+    const t1 = this.add.text(cam.width / 2, cam.height / 2 - 50, deathMsg, { fontFamily: FONT, fontSize: '24px', color: '#ff9ecb', fontStyle: 'bold' }).setOrigin(0.5);
     const t2 = this.add.text(cam.width / 2, cam.height / 2 - 12, 'Try again?', { fontFamily: FONT, fontSize: '16px', color: '#cdd6f0' }).setOrigin(0.5);
     const btn = this.add.rectangle(cam.width / 2, cam.height / 2 + 44, 180, 50, 0x6d8cff).setStrokeStyle(2, 0xffffff, 0.5).setInteractive({ useHandCursor: true });
     const btnT = this.add.text(cam.width / 2, cam.height / 2 + 44, 'Respawn', { fontFamily: FONT, fontSize: '17px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
