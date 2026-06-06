@@ -254,7 +254,7 @@ class WorldScene extends Phaser.Scene {
         dialogue_lines: [
           `Happy Birthday, ${bdName}!`,
           'Welcome to your birthday world! Click to throw paper airplanes to protect yourself from the overwhelming love we are sending you.',
-          'Use arrow keys or WASD to explore. Your friends are scattered across the island — walk up to them and press SPACE to hear their messages.',
+          `Use arrow keys or WASD to explore. Your friends are scattered across the ${this.terrainStyle === 'archipelago' ? 'islands' : 'island'} — walk up to them and press SPACE to hear their messages.`,
         ],
       },
       x: ox, y: oy, container, sprite, texKey: key,
