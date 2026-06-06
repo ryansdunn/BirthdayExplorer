@@ -94,6 +94,26 @@
     }
     #introPlayBtn:hover { filter: brightness(1.12); }
 
+    /* ── Mobile warning banner ───────────────────────────────────────────── */
+    #mobileBanner {
+      display: none;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+      background: rgba(10, 12, 24, 0.95);
+      border-bottom: 1px solid rgba(109, 140, 255, 0.35);
+      font-family: var(--mono); font-size: 0.75rem; color: #c5cce0;
+      padding: 10px 16px; text-align: center;
+      backdrop-filter: blur(6px);
+    }
+    #mobileBanner span { color: #a78bff; font-weight: 700; }
+    #mobileBannerClose {
+      margin-left: 12px; cursor: pointer; color: #6a7494;
+      font-size: 0.9rem; vertical-align: middle;
+    }
+    #mobileBannerClose:hover { color: #fff; }
+    @media (max-width: 768px) {
+      #mobileBanner { display: block; }
+    }
+
     /* ── Creator preview-mode badge ──────────────────────────────────────── */
     #previewBadge {
       position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
@@ -161,6 +181,10 @@
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
 </head>
 <body>
+  <div id="mobileBanner">
+    For the best experience, <span>open this on a laptop</span> 🎂
+    <span id="mobileBannerClose" onclick="this.parentElement.remove()">✕</span>
+  </div>
   <div id="loading">Loading the world…</div>
   <div id="game"></div>
 
