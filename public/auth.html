@@ -132,7 +132,7 @@
       if (mode === 'signin') {
         ({ error } = await sb.auth.signInWithPassword({ email, password }));
       } else {
-        ({ error } = await sb.auth.signUp({ email, password }));
+        ({ error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/auth` } }));
       }
 
       if (error) {
