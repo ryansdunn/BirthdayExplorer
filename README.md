@@ -1,4 +1,4 @@
-# BirthdayWorld
+# BirthdayExlorer
 
 **A collaborative pixel-art birthday gift — built with Claude, Phaser 3, and Node.js.**
 
@@ -10,9 +10,7 @@ Live at **[birthdaycard.ryansdunn.com](https://birthdaycard.ryansdunn.com)**
 
 ## The idea
 
-Birthday cards get tossed. A birthday world gets explored.
-
-The whole concept is about making something personal feel like an event — friends contribute asynchronously from their phones, the organizer customizes the mood and terrain, and the birthday person gets a link to an adventure rather than a static image. Every NPC in the world represents a real person who took a moment to write something for them.
+I built it for my cousin so that I could help organize something meaningful for her birthday. Birthday explorer enables friend groups and families to organize a fun interactive birthday card that expands with the people who contribute to it.
 
 ---
 
