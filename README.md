@@ -61,18 +61,6 @@ No build step. No bundler. Phaser is loaded from CDN; everything else is vanilla
 
 ---
 
-## Running locally
-
-```bash
-npm install
-cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
----
-
 ## API
 
 | Method | Route | Auth | Purpose |
