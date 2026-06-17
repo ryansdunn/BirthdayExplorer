@@ -1,4 +1,4 @@
-# BirthdayExlorer
+# BirthdayExplorer
 
 **A collaborative pixel-art birthday gift — built with Claude, Phaser 3, and Node.js.**
 
