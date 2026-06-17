@@ -1,106 +1,114 @@
 # BirthdayWorld
 
-An interactive **pixel-art adventure** where friends contribute NPC characters with
-birthday messages, and the birthday person washes ashore and explores the world talking
-to them.
+**A collaborative pixel-art birthday gift — built with Claude, Phaser 3, and Node.js.**
 
-Built with **Phaser 3** (frontend) and **Node + Express + better-sqlite3** (backend).
-No build step, no bundler — Phaser is loaded via CDN. **Zero binary assets**: every
-tile, character, prop and projectile is generated at runtime with Phaser Graphics.
+BirthdayWorld turns a birthday into a little adventure game. An organizer creates a world for the birthday person; their friends each contribute an NPC character with a personal message; and the birthday person explores that world — meeting each friend as a pixel-art character, reading what they wrote, and fighting off wholesome enemies along the way. No downloads, no installs — it runs in any browser.
 
-## Run it
+Live at **[birthdaycard.ryansdunn.com](https://birthdaycard.ryansdunn.com)**
 
-```bash
-npm install
-npm start          # or: npm run dev  (auto-restart)
-```
+---
 
-Then open <http://localhost:3000/create>.
+## The idea
 
-## The loop
+Birthday cards get tossed. A birthday world gets explored.
 
-1. **Create** (`/create`) — enter the birthday person's name and date. You get a link
-   to set the world up, plus a **contributor** link and an **explorer** link.
-2. **Set up** (`/setup/:worldId`) — the organiser picks a world name, the birthday
-   person's character + nameplate, the **world shape** (one organic island /
-   archipelago), a **mood** (Peaceful / Adventure / Chaotic), and the **enemy mix**
-   (toggle + 1–5 slider per wholesome enemy type). The character is a generated
-   pixel-art design picked from canvas previews — no emoji.
-3. **Contribute** (`/contribute/:worldId`) — friends pick a generated pixel-art
-   character, a zone theme, a name, a greeting, and up to 3 dialogue lines. Each
-   submission is placed at the next free coordinate, spiralling outward from the hub.
-4. **Explore** (`/explore/:worldId`) — a Zelda-style top-down adventure (see below).
+The whole concept is about making something personal feel like an event — friends contribute asynchronously from their phones, the organizer customizes the mood and terrain, and the birthday person gets a link to an adventure rather than a static image. Every NPC in the world represents a real person who took a moment to write something for them.
+
+---
+
+## How it works
+
+**Three roles, one world:**
+
+1. **Organizer** creates the world (`/create`), names the birthday person, then visits `/setup` to configure the world's name, terrain style (one fused island vs. an archipelago with bridges between each friend's island), mood (Peaceful / Adventure / Chaotic), enemy mix, and custom character.
+
+2. **Friends** visit `/contribute/:worldId` — a short, mobile-friendly form. They pick a pixel-art NPC character, choose a zone theme, write up to 3 dialogue lines, and submit. Each contribution lands at the next free coordinate, spiraling outward from the hub.
+
+3. **Birthday person** visits `/explore/:worldId` — a Zelda-style top-down adventure where they walk around meeting each friend. Every NPC is the exact character the friend picked in the form.
+
+---
 
 ## The explorer
 
-A top-down pixel-art adventure rendered with a zoomed main camera (chunky pixels) and a
-separate unzoomed UI camera (crisp HUD).
+The game renders entirely at runtime with Phaser 3 Graphics — **zero binary assets**. Every tile, character, prop, and projectile is generated with code.
 
-- **Organic terrain.** Each contributed chunk is no longer a square. A deterministic
-  noise generator (seeded from the world id) sculpts the land:
-  - **One island** — chunks fuse into a single landmass from continuous world-space
-    noise, biomes bleed into each other via domain-warped anchors, water rings the coast.
-  - **Archipelago** — each contributor is its own organic island ringed by beach, joined
-    to neighbours by walkable **wooden bridges**.
-  Water is impassable (manual per-tile collision with wall-sliding); every chunk centre
-  is guaranteed land so NPCs always stand on ground.
-- **Pixel sprites**, all generated at runtime — a 4-direction walk-cycle player and
-  NPCs painted from shared character designs (`public/pixel/characters.js`), enemies,
-  trees/rocks/bushes/flowers, and the paper airplane. The character a player/contributor
-  picks in the forms is the exact same `paintFrame` used in-game, so previews match.
-  Restyle terrain colours via `public/pixel/palettes.js`.
-- **Paper airplanes.** Press **F** (or the mobile airplane button) to throw a pixel airplane in
-  your facing direction; a hit pops a roaming enemy into confetti (it returns on the 30s
-  respawn). Birthday Cakes and NPCs are never affected.
-- **Feel** — camera leads the direction of travel, ambient particles (forest leaves /
-  beach bubbles / magical sparkles), animated water, a 10-minute day/night tint,
-  footstep dust, and a light-bloom fog-of-war reveal.
-- **HUD** — heart containers top-right (full / half / empty, ½-heart hits with a 1s
-  invincibility flash), a compass to the nearest un-met friend, a fog-of-war minimap,
-  and a **living-portrait** card (top-left) that lists everyone you've met — hover a
-  person to re-read the message they wrote.
-- **Wholesome enemies** — Love Hearts (home in, ½-heart bump), Huggers (charge, grab
-  1.5s, full-heart squeeze), Confetti Bombers (keep distance, lob confetti), and
-  Birthday Cakes (stationary; walk in to **heal** a heart). Run out of hearts and you get
-  a wholesome game-over — *"You were loved too hard. Try again?"* — respawning at the hub.
+- **Organic terrain.** A deterministic value-noise generator (seeded from the world ID) shapes the land. Island mode fuses all chunks into one landmass with biomes bleeding together via domain-warped anchors. Archipelago mode gives each friend their own organic island, joined to neighbors by wooden bridges.
+- **Pixel sprites.** A 4-direction walk-cycle player, 12 distinct NPC designs, 4 enemy types (Love Hearts, Huggers, Confetti Bombers, Birthday Cakes), trees, rocks, flowers, and a paper airplane — all generated by `paintFrame` renderers shared between the form previews and the actual game, so what you pick is exactly what appears in-world.
+- **Wholesome enemies.** Love Hearts home in and bump. Huggers charge, grab, and squeeze for a full heart. Confetti Bombers lob projectiles from range. Birthday Cakes are stationary — walk into one to heal. Run out of hearts and you get a wholesome game-over and respawn at the hub.
+- **Atmosphere.** Camera leads your direction of travel. Ambient particles (forest leaves, beach bubbles, magical sparkles) respond to the zone theme. A 10-minute day/night tint shifts across the session. Footstep dust. Fog-of-war minimap. A living-portrait HUD card lists everyone you've met — hover any name to re-read their message.
+- **Mobile-friendly.** Half-screen drag joystick, tap-to-throw, and a TALK button that appears near NPCs.
 
-Controls: **WASD / arrows** move, **Space** or **E** talk / advance dialogue, **F** throw.
-On mobile: left-half drag joystick, the airplane button throws, the TALK button appears near people.
+---
 
-### Swapping in real art
+## Built with Claude
 
-Every sprite/tile is registered under a stable texture key (see the comments atop
-`public/pixel/sprites.js` and `public/pixel/textures.js`). To use real pixel art (e.g.
-Kenney tiles) instead, register the same keys from loaded images in a Phaser `preload()`
-— generation is guarded by `textures.exists`, so engine code doesn't change.
+This project was built in close collaboration with [Claude Code](https://claude.ai/code). Claude contributed across the full stack — designing the spiral coordinate allocator, iterating on the Phaser scene architecture, building out the pixel-art generation system, writing the organic terrain and archipelago generators, and helping debug edge cases in collision, dialogue sequencing, and auth flows.
+
+Working this way — describing what I wanted, steering on design decisions, and reviewing Claude's output critically — is exactly how I expect to work on AI-assisted projects going forward. The result is something I couldn't have shipped as quickly or as polished on my own.
+
+---
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Game engine | Phaser 3 (CDN, no bundler) |
+| Backend | Node.js + Express |
+| Database | Supabase (PostgreSQL) |
+| Auth | Supabase Auth |
+| Hosting | Railway |
+| Pixel rendering | Runtime canvas (zero images) |
+
+No build step. No bundler. Phaser is loaded from CDN; everything else is vanilla JS served as static files.
+
+---
+
+## Running locally
+
+```bash
+npm install
+cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+---
 
 ## API
 
-| Method | Route                     | Purpose                                  |
-| ------ | ------------------------- | ---------------------------------------- |
-| POST   | `/worlds`                 | Create a world → `{ id }`                |
-| GET    | `/worlds/:id`             | World metadata (incl. enemy config)      |
-| PUT    | `/worlds/:id/setup`       | Save organiser setup (mood, enemies, …)  |
-| GET    | `/worlds/:id/chunks`      | All chunks (JSON)                        |
-| POST   | `/worlds/:id/chunks`      | Submit a new chunk                       |
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/worlds` | Required | Create a world |
+| `GET` | `/worlds/:id` | — | World metadata |
+| `PUT` | `/worlds/:id/setup` | Required (owner) | Save organizer settings |
+| `GET` | `/worlds/:id/chunks` | — | All contributor chunks |
+| `POST` | `/worlds/:id/chunks` | — | Submit a new contribution |
+| `PATCH` | `/worlds/:id/archive` | Required (owner) | Archive a world |
+| `GET` | `/dashboard/worlds` | Required | All worlds for current user |
 
-SQLite data lives in `birthdayworld.db` (created automatically; git-ignored). Existing
-databases are migrated in place (new world columns are added if missing).
+Rate limiting is applied to chunk submissions (20/hour per IP).
+
+---
 
 ## Structure
 
 ```
-server/index.js         Express app, SQLite, routes, spiral allocation, enemy/terrain config
-public/index.html       Create screen
-public/setup.html       Organiser world-setup screen (shape, mood, enemies, player)
-public/contribute.html  Contributor form
-public/explore.html     Phaser game shell (loads the pixel/* modules, then explore.js)
-public/explore.js       Phaser scene: terrain/sprite wiring, movement, NPCs, enemies, HUD, dialogue
-public/pixel/noise.js     Deterministic value-noise + domain warp (no deps)
-public/pixel/palettes.js  Data-driven terrain colour palettes (the restyle "config")
-public/pixel/characters.js Curated pixel character designs + shared paintFrame renderer
-public/pixel/textures.js  Runtime pixel terrain-tile textures
-public/pixel/terrain.js   Island / archipelago generators, walkability, rendering
-public/pixel/sprites.js   Runtime pixel player / NPC / enemy / prop / airplane sprites
-public/pixel/weapon.js    Paper-airplane projectile system
+server/index.js            Express app, routes, auth middleware, rate limiting
+public/
+  index.html               Create screen
+  auth.html                Sign in / sign up
+  dashboard.html           Organizer dashboard
+  setup.html               World configuration
+  contribute.html          Friend contribution form
+  explore.html             Phaser game shell
+  explore.js               Phaser scene: terrain, sprites, movement, NPCs, enemies, HUD
+  pixel/
+    noise.js               Deterministic value-noise + domain warp
+    palettes.js            Terrain color palettes per zone theme
+    characters.js          12 NPC designs + shared paintFrame renderer
+    textures.js            Runtime terrain tile textures
+    terrain.js             Island / archipelago generators + walkability
+    sprites.js             Player, NPC, enemy, prop, airplane sprites
+    weapon.js              Paper-airplane projectile system
 ```
